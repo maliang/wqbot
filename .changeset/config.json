@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/changelog-github",
+  "commit": false,
+  "fixed": [
+    [
+      "@wqbot/core",
+      "@wqbot/cli",
+      "@wqbot/backend",
+      "@wqbot/gui-tauri",
+      "@wqbot/storage",
+      "@wqbot/models",
+      "@wqbot/skills",
+      "@wqbot/security"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  },
+  "ignore": []
+}

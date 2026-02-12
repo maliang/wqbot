@@ -1,0 +1,90 @@
+.task-progress {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.task-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.cancel-all-btn {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background-color: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.task-id {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.task-name {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-progress-bar {
+  width: 100px;
+}
+
+.task-status {
+  font-size: 14px;
+}
+
+.task-status.pending { color: var(--text-secondary); }
+.task-status.running { color: var(--accent-primary); }
+.task-status.completed { color: var(--success); }
+.task-status.cancelled { color: var(--warning); }
+.task-status.failed { color: var(--error); }
+
+.task-cancel-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.task-cancel-btn:hover {
+  background-color: var(--error);
+  border-color: var(--error);
+  color: white;
+}
+
+.no-tasks {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 8px;
+}

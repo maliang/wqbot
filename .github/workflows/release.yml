@@ -1,0 +1,219 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+        default: '0.1.0'
+
+env:
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  # ============================================================
+  # 阶段 A: Changesets 版本管理（push to main 触发）
+  # ============================================================
+  changesets:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    name: Changesets Version
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm version-packages
+          publish: pnpm release
+          title: 'chore: version packages'
+          commit: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # 如果有新版本发布，创建 git tag
+      - name: Create git tag
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          VERSION=$(node -p "require('./packages/core/package.json').version")
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+  # ============================================================
+  # 阶段 B: Tauri 构建（tag v* 触发）
+  # ============================================================
+  build-tauri:
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+            name: 'macOS'
+          - platform: 'ubuntu-22.04'
+            args: ''
+            name: 'Linux'
+          - platform: 'windows-latest'
+            args: ''
+            name: 'Windows'
+
+    runs-on: ${{ matrix.platform }}
+    name: Build ${{ matrix.name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './packages/gui-tauri/src-tauri -> target'
+
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          projectPath: packages/gui-tauri
+          tagName: v__VERSION__
+          releaseName: 'WQBot v__VERSION__'
+          releaseBody: |
+            ## WQBot v__VERSION__
+
+            智能 AI 管家 - 跨平台 AI 助手
+
+            ### 安装说明
+
+            **Windows:**
+            - 下载 `.msi` 或 `.exe` 安装程序
+            - 双击运行安装
+            - 从开始菜单启动 WQBot
+
+            **macOS:**
+            - 下载 `.dmg` 文件
+            - 打开并拖拽到 Applications 文件夹
+            - 首次运行需要在系统偏好设置中允许
+
+            **Linux:**
+            - AppImage: 下载后添加执行权限 `chmod +x WQBot_*.AppImage`
+            - deb: `sudo dpkg -i wqbot_*.deb`
+
+            ### 首次使用
+
+            1. 启动应用后会自动弹出配置向导
+            2. 选择 AI 提供商并输入 API Key
+            3. 开始对话！
+
+            ### CLI 使用
+
+            安装后也可以在终端使用：
+            ```bash
+            wqbot              # 进入对话模式
+            wqbot "你好"       # 单次提问
+            wqbot --setup      # 重新配置
+            ```
+          releaseDraft: true
+          prerelease: false
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }}
+
+      # Windows 平台：运行 patch-nsis 注入 CLI 并重新上传到 Release
+      - name: Patch NSIS installer (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: node scripts/patch-nsis.js
+
+      - name: Re-upload patched NSIS installer (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./packages/gui-tauri/package.json').version")
+          NSIS_FILE="packages/gui-tauri/src-tauri/target/release/bundle/nsis/WQBot_${VERSION}_x64-setup.exe"
+          if [ -f "$NSIS_FILE" ]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            gh release upload "$TAG_NAME" "$NSIS_FILE" --clobber
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wqbot-${{ matrix.name }}
+          path: |
+            packages/gui-tauri/src-tauri/target/release/bundle/**/*.exe
+            packages/gui-tauri/src-tauri/target/release/bundle/**/*.msi
+            packages/gui-tauri/src-tauri/target/release/bundle/**/*.dmg
+            packages/gui-tauri/src-tauri/target/release/bundle/**/*.AppImage
+            packages/gui-tauri/src-tauri/target/release/bundle/**/*.deb
+            packages/gui-tauri/src-tauri/target/release/bundle/**/*.sig
+          if-no-files-found: ignore

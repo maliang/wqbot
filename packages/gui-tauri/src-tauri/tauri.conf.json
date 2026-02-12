@@ -1,0 +1,108 @@
+{
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "WQBot",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "app": {
+        "all": true
+      },
+      "shell": {
+        "all": false,
+        "open": true
+      },
+      "window": {
+        "all": true
+      },
+      "http": {
+        "all": true,
+        "request": true
+      },
+      "process": {
+        "all": false,
+        "relaunch": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.wqbot.app",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "resources": [
+        "../../../packages/cli/dist/**/*",
+        "../../../packages/backend/dist/**/*",
+        "../../../packages/core/dist/**/*",
+        "../../../packages/storage/dist/**/*",
+        "../../../packages/models/dist/**/*",
+        "../../../packages/skills/dist/**/*"
+      ],
+      "shortDescription": "智能 AI 管家",
+      "longDescription": "WQBot 是一个跨平台的智能 AI 助手，支持多模型路由、动态技能系统和 Token 优化对话管理。",
+      "category": "Utility",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": "",
+        "wix": null,
+        "nsis": {
+          "license": null,
+          "installerIcon": "icons/icon.ico",
+          "headerImage": null,
+          "sidebarImage": null,
+          "installMode": "currentUser",
+          "languages": ["SimpChinese", "English"],
+          "displayLanguageSelector": true
+        }
+      },
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": null,
+        "frameworks": [],
+        "minimumSystemVersion": "10.13",
+        "signingIdentity": null
+      }
+    },
+    "security": {
+      "csp": null
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/user/wqbot/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": "UPDATER_PUBKEY_PLACEHOLDER",
+      "windows": {
+        "installMode": "passive"
+      }
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "WQBot - 智能 AI 管家",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
+        "decorations": true,
+        "transparent": false
+      }
+    ]
+  }
+}
