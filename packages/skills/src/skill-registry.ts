@@ -4,6 +4,8 @@ import { glob } from 'glob'
 import type { SkillManifest, Permission } from '@wqbot/core'
 import { getConfigManager, createModuleLogger } from '@wqbot/core'
 import { BaseSkill, type SkillExecuteParams } from './base-skill.js'
+import { getMarkdownSkillLoader, type MarkdownSkillDef } from './markdown-loader.js'
+import { getToolRegistry } from './tool-registry.js'
 
 const logger = createModuleLogger('skill-registry')
 
@@ -15,6 +17,8 @@ interface RegisteredSkill {
 
 export class SkillRegistry {
   private readonly skills: Map<string, RegisteredSkill> = new Map()
+  private readonly disabledSkills: Set<string> = new Set()
+  private markdownSkills: readonly MarkdownSkillDef[] = []
   private initialized = false
 
   async initialize(): Promise<void> {
@@ -28,13 +32,14 @@ export class SkillRegistry {
     // Load user-installed skills
     await this.loadUserSkills()
 
+    // Load Markdown skills
+    await this.loadMarkdownSkills()
+
     this.initialized = true
-    logger.info(`Skill registry initialized with ${this.skills.size} skills`)
+    logger.info(`Skill registry initialized with ${this.skills.size} skills, ${this.markdownSkills.length} markdown skills`)
   }
 
   private async loadBuiltinSkills(): Promise<void> {
-    // Built-in skills will be loaded from the builtin directory
-    // For now, we'll register them programmatically
     logger.debug('Loading built-in skills')
   }
 
@@ -51,6 +56,39 @@ export class SkillRegistry {
     for (const manifestPath of manifestPaths) {
       const fullPath = path.join(skillsDir, manifestPath)
       await this.loadSkillFromManifest(fullPath, false)
+    }
+  }
+
+  private async loadMarkdownSkills(): Promise<void> {
+    const loader = getMarkdownSkillLoader()
+    this.markdownSkills = await loader.loadAll()
+
+    // 注册 Markdown 技能到 ToolRegistry
+    if (this.markdownSkills.length > 0) {
+      const toolRegistry = getToolRegistry()
+      const skills = this.markdownSkills
+
+      toolRegistry.register({
+        name: 'load_skill',
+        description: `加载专业技能。可用技能:\n${skills.map(s => `- ${s.name}: ${s.description}`).join('\n')}`,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: '技能名称' },
+          },
+          required: ['name'],
+        },
+        source: 'skill',
+        execute: async (args: Record<string, unknown>) => {
+          const skill = skills.find(s => s.name === args.name)
+          if (!skill) {
+            return { content: `技能不存在: ${args.name}`, isError: true }
+          }
+          return { content: skill.content }
+        },
+      })
+
+      logger.info(`已注册 ${skills.length} 个 Markdown 技能到 ToolRegistry`)
     }
   }
 
@@ -119,7 +157,9 @@ export class SkillRegistry {
   }
 
   getAll(): readonly BaseSkill[] {
-    return [...this.skills.values()].map((r) => r.skill)
+    return [...this.skills.values()]
+      .filter(r => !this.disabledSkills.has(r.skill.name))
+      .map((r) => r.skill)
   }
 
   getBuiltin(): readonly BaseSkill[] {
@@ -141,6 +181,7 @@ export class SkillRegistry {
     const matches: Array<{ skill: BaseSkill; confidence: number }> = []
 
     for (const { skill } of this.skills.values()) {
+      if (this.disabledSkills.has(skill.name)) continue
       const { matched, confidence } = skill.matches(input)
       if (matched) {
         matches.push({ skill, confidence })
@@ -158,6 +199,10 @@ export class SkillRegistry {
     skillName: string,
     params: SkillExecuteParams
   ): Promise<{ success: boolean; data?: unknown | undefined; error?: string | undefined }> {
+    if (this.disabledSkills.has(skillName)) {
+      return { success: false, error: `Skill is disabled: ${skillName}` }
+    }
+
     const skill = this.get(skillName)
     if (!skill) {
       return { success: false, error: `Skill not found: ${skillName}` }
@@ -172,6 +217,44 @@ export class SkillRegistry {
   getRequiredPermissions(skillName: string): readonly Permission[] {
     const skill = this.get(skillName)
     return skill?.requiredPermissions ?? []
+  }
+
+  enable(skillName: string): boolean {
+    if (!this.disabledSkills.has(skillName)) return false
+    this.disabledSkills.delete(skillName)
+    logger.info(`Skill enabled: ${skillName}`)
+    return true
+  }
+
+  disable(skillName: string): boolean {
+    if (!this.skills.has(skillName)) return false
+    this.disabledSkills.add(skillName)
+    logger.info(`Skill disabled: ${skillName}`)
+    return true
+  }
+
+  isEnabled(skillName: string): boolean {
+    return !this.disabledSkills.has(skillName)
+  }
+
+  async reload(): Promise<void> {
+    // 保留内置技能和禁用状态
+    const builtinSkills = new Map<string, RegisteredSkill>()
+    for (const [name, reg] of this.skills) {
+      if (reg.isBuiltin) builtinSkills.set(name, reg)
+    }
+
+    // 清空非内置技能
+    this.skills.clear()
+    for (const [name, reg] of builtinSkills) {
+      this.skills.set(name, reg)
+    }
+
+    // 重新加载用户技能和 Markdown 技能
+    await this.loadUserSkills()
+    await this.loadMarkdownSkills()
+
+    logger.info(`Skill registry reloaded: ${this.skills.size} skills, ${this.markdownSkills.length} markdown skills`)
   }
 }
 

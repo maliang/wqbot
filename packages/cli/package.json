@@ -17,10 +17,6 @@
   },
   "dependencies": {
     "@wqbot/core": "workspace:*",
-    "@wqbot/models": "workspace:*",
-    "@wqbot/skills": "workspace:*",
-    "@wqbot/storage": "workspace:*",
-    "@wqbot/security": "workspace:*",
     "@wqbot/backend": "workspace:*",
     "commander": "^12.0.0",
     "ink": "^4.4.0",

@@ -48,11 +48,11 @@ registerCommand({
           `  /${cmd.name.padEnd(15)} ${cmd.description}${cmd.aliases.length > 0 ? ` (别名: ${cmd.aliases.map((a) => '/' + a).join(', ')})` : ''}`
       ),
       '',
-      '提示: 直接输入消息与 AI 对话'
+      '提示: 直接输入消息与 AI 对话',
     ]
 
     return { success: true, message: lines.join('\n') }
-  }
+  },
 })
 
 // 退出命令
@@ -62,7 +62,7 @@ registerCommand({
   description: '退出 WQBot',
   handler: async () => {
     return { success: true, message: '再见！', exit: true }
-  }
+  },
 })
 
 // 清屏命令
@@ -73,7 +73,7 @@ registerCommand({
   handler: async () => {
     console.clear()
     return { success: true }
-  }
+  },
 })
 
 // 模型命令
@@ -99,7 +99,7 @@ registerCommand({
       return { success: true, message: `已切换到模型: ${modelName}` }
     }
     return { success: false, message: result.error || '切换模型失败' }
-  }
+  },
 })
 
 // 配置命令
@@ -144,7 +144,7 @@ registerCommand({
       return { success: true, message: `已设置 ${key} = ${value}` }
     }
     return { success: false, message: result.error || '设置失败' }
-  }
+  },
 })
 
 // 技能命令
@@ -205,7 +205,7 @@ registerCommand({
           return {
             success: true,
             message: `已生成技能模板:\n\n${result.data.content}`,
-            data: result.data
+            data: result.data,
           }
         }
         return { success: false, message: result.error || '创建失败' }
@@ -225,7 +225,7 @@ registerCommand({
       default:
         return { success: false, message: `未知子命令: ${subcommand}` }
     }
-  }
+  },
 })
 
 // 规则命令
@@ -286,7 +286,7 @@ registerCommand({
           return {
             success: true,
             message: `已生成规则模板:\n\n${result.data.content}`,
-            data: result.data
+            data: result.data,
           }
         }
         return { success: false, message: result.error || '创建失败' }
@@ -295,7 +295,7 @@ registerCommand({
       default:
         return { success: false, message: `未知子命令: ${subcommand}` }
     }
-  }
+  },
 })
 
 // 代理命令
@@ -356,7 +356,7 @@ registerCommand({
           return {
             success: true,
             message: `已生成代理模板:\n\n${result.data.content}`,
-            data: result.data
+            data: result.data,
           }
         }
         return { success: false, message: result.error || '创建失败' }
@@ -365,7 +365,7 @@ registerCommand({
       default:
         return { success: false, message: `未知子命令: ${subcommand}` }
     }
-  }
+  },
 })
 
 // 任务命令
@@ -391,7 +391,9 @@ registerCommand({
           }
           const lines = ['活动任务:', '']
           for (const task of activeTasks) {
-            lines.push(`  #${task.id.slice(0, 4)} ${task.name} - ${task.progress}% (${task.status})`)
+            lines.push(
+              `  #${task.id.slice(0, 4)} ${task.name} - ${task.progress}% (${task.status})`
+            )
           }
           return { success: true, message: lines.join('\n') }
         }
@@ -421,7 +423,7 @@ registerCommand({
       default:
         return { success: false, message: `未知子命令: ${subcommand}` }
     }
-  }
+  },
 })
 
 // 历史命令
@@ -435,8 +437,7 @@ registerCommand({
     const subcommand = args[0]
 
     if (subcommand === 'clear') {
-      // TODO: 实现清除历史
-      return { success: true, message: '历史已清除' }
+      return { success: false, message: '功能开发中：历史清除功能尚未实现' }
     }
 
     const result = await api.listConversations(10)
@@ -452,29 +453,101 @@ registerCommand({
       return { success: true, message: lines.join('\n') }
     }
     return { success: false, message: '获取历史失败' }
-  }
+  },
 })
 
 // 压缩命令
 registerCommand({
   name: 'compact',
   aliases: [],
-  description: '手动压缩上下文',
-  handler: async () => {
-    // TODO: 调用 ConversationOptimizer
-    return { success: true, message: '上下文已压缩' }
-  }
+  description: '手动压缩当前对话的上下文',
+  usage: '/compact [force]',
+  handler: async (args) => {
+    const api = getApiClient()
+    const force = args.includes('force')
+
+    // 获取当前对话 ID（需要从某处获取，这里简化为提示用户）
+    // 在实际实现中，可能需要从某个地方获取当前对话 ID
+    // 这里先获取最近的对话
+    const conversationsResult = await api.listConversations(1)
+    if (
+      !conversationsResult.success ||
+      !conversationsResult.data ||
+      conversationsResult.data.length === 0
+    ) {
+      return { success: false, message: '没有找到对话' }
+    }
+
+    const conversationId = conversationsResult.data[0]!.id
+
+    const result = await api.compactConversation(conversationId, force)
+    if (result.success && result.data) {
+      const { originalCount, compactedCount, pruned, summarized } = result.data
+      let message = `上下文压缩完成：\n`
+      message += `- 原始消息数: ${originalCount}\n`
+      message += `- 压缩后消息数: ${compactedCount}\n`
+      message += `- 移除消息数: ${pruned}\n`
+      if (summarized) {
+        message += `- 已生成摘要`
+      }
+      return { success: true, message }
+    }
+    return { success: false, message: result.error || '压缩失败' }
+  },
 })
 
 // 标记命令
 registerCommand({
   name: 'pin',
   aliases: [],
-  description: '标记当前消息为重要',
-  handler: async () => {
-    // TODO: 实现消息标记
-    return { success: true, message: '消息已标记为重要' }
-  }
+  description: '标记/取消标记消息为重要',
+  usage: '/pin <messageId> 或 /pin unpin <messageId>',
+  handler: async (args) => {
+    const api = getApiClient()
+
+    // 解析参数
+    let messageId: string | undefined
+    let unpin = false
+
+    if (args[0] === 'unpin' && args[1]) {
+      unpin = true
+      messageId = args[1]
+    } else if (args[0]) {
+      messageId = args[0]
+    }
+
+    if (!messageId) {
+      return {
+        success: false,
+        message: '请指定消息 ID：/pin <messageId> 或 /pin unpin <messageId>',
+      }
+    }
+
+    // 获取当前对话
+    const conversationsResult = await api.listConversations(1)
+    if (
+      !conversationsResult.success ||
+      !conversationsResult.data ||
+      conversationsResult.data.length === 0
+    ) {
+      return { success: false, message: '没有找到对话' }
+    }
+
+    const conversationId = conversationsResult.data[0]!.id
+
+    // 执行 pin/unpin 操作
+    const result = unpin
+      ? await api.unpinMessage(conversationId, messageId)
+      : await api.pinMessage(conversationId, messageId)
+
+    if (result.success) {
+      return {
+        success: true,
+        message: unpin ? `已取消标记消息: ${messageId}` : `已标记消息为重要: ${messageId}`,
+      }
+    }
+    return { success: false, message: result.error || (unpin ? '取消标记失败' : '标记失败') }
+  },
 })
 
 // 导出命令
@@ -482,10 +555,34 @@ registerCommand({
   name: 'export',
   aliases: [],
   description: '导出当前对话',
-  handler: async () => {
-    // TODO: 实现导出
-    return { success: true, message: '对话已导出' }
-  }
+  usage: '/export [json|md]',
+  handler: async (args) => {
+    const api = getApiClient()
+    const format = args.includes('json') ? 'json' : 'md'
+
+    // 获取当前对话
+    const conversationsResult = await api.listConversations(1)
+    if (
+      !conversationsResult.success ||
+      !conversationsResult.data ||
+      conversationsResult.data.length === 0
+    ) {
+      return { success: false, message: '没有找到对话' }
+    }
+
+    const conversationId = conversationsResult.data[0]!.id
+
+    try {
+      const exported = await api.exportConversation(conversationId, format)
+      const ext = format === 'json' ? 'json' : 'md'
+      console.log(`\n--- 对话导出 (${ext.toUpperCase()}) ---\n`)
+      console.log(exported)
+      console.log(`\n--- 导出结束 ---\n`)
+      return { success: true, message: `已导出对话到 ${ext.toUpperCase()} 格式（见上方）` }
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : '导出失败' }
+    }
+  },
 })
 
 // 解析并执行命令
@@ -512,7 +609,7 @@ export async function executeCommand(input: string): Promise<CommandResult | nul
   } catch (error) {
     return {
       success: false,
-      message: `命令执行失败: ${error instanceof Error ? error.message : '未知错误'}`
+      message: `命令执行失败: ${error instanceof Error ? error.message : '未知错误'}`,
     }
   }
 }

@@ -102,6 +102,18 @@ echo "链接 CLI..."
 cd packages/cli
 pnpm link --global
 
+# 检查 pnpm global bin 是否在 PATH 中
+PNPM_BIN=$(pnpm bin -g 2>/dev/null)
+if [ -n "$PNPM_BIN" ] && [[ ":$PATH:" != *":$PNPM_BIN:"* ]]; then
+    echo ""
+    echo -e "${YELLOW}提示: pnpm global bin 不在 PATH 中${NC}"
+    echo -e "  请运行以下命令添加:"
+    echo ""
+    echo "  export PATH=\"$PNPM_BIN:\$PATH\""
+    echo ""
+    echo "  添加到 ~/.bashrc 或 ~/.zshrc 以永久生效"
+fi
+
 # 下载 GUI（可选）
 echo ""
 echo -e "${CYAN}[4/4]${NC} 安装桌面应用..."

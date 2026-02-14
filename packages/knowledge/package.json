@@ -1,0 +1,32 @@
+{
+  "name": "@wqbot/knowledge",
+  "version": "0.1.0",
+  "description": "WQBot knowledge base - FTS5 full-text search and optional vector semantic search",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@wqbot/core": "workspace:*",
+    "@wqbot/models": "workspace:*",
+    "@wqbot/storage": "workspace:*",
+    "ai": "^3.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.5",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  }
+}

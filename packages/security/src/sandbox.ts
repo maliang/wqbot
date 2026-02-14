@@ -1,6 +1,7 @@
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { getConfigManager, createModuleLogger } from '@wqbot/core'
+import { getCommandParser } from './command-parser.js'
 
 const logger = createModuleLogger('sandbox')
 
@@ -144,6 +145,29 @@ export class Sandbox {
       return { allowed: true, sanitizedCommand: command }
     }
 
+    // 优先使用 AST 分析
+    const parser = getCommandParser()
+    const analysis = parser.analyze(command)
+
+    if (!analysis.allowed) {
+      const reasons = analysis.risks
+        .filter((r) => r.level === 'critical' || r.level === 'high')
+        .map((r) => r.description)
+      logger.warn('Command blocked by AST analysis', { command, risks: reasons })
+      return {
+        allowed: false,
+        reason: `安全风险: ${reasons.join('; ')}`,
+      }
+    }
+
+    // Fallback: 正则检查（覆盖 AST 可能遗漏的模式）
+    return this.checkCommandRegex(command)
+  }
+
+  /**
+   * Regex-based command check (fallback)
+   */
+  private checkCommandRegex(command: string): CommandCheckResult {
     const commandLower = command.toLowerCase().trim()
 
     // Check exact blocked commands

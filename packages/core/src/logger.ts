@@ -62,9 +62,17 @@ class PinoLoggerWrapper implements Logger {
 let rootLogger: Logger | null = null
 
 export function createLogger(options?: { level?: LogLevel; logFile?: string }): Logger {
-  const config = getConfigManager().getConfig()
-  const level = options?.level ?? config.logLevel
-  const logFile = options?.logFile ?? config.logFile
+  // 获取配置，如果 ConfigManager 尚未初始化则使用默认值
+  let config: { logLevel?: LogLevel; logFile?: string | undefined } | null = null
+  try {
+    const cfg = getConfigManager().getConfig()
+    config = { logLevel: cfg.logLevel, logFile: cfg.logFile }
+  } catch {
+    // ConfigManager 尚未初始化，使用默认值
+  }
+
+  const level = options?.level ?? config?.logLevel ?? 'info'
+  const logFile = options?.logFile ?? config?.logFile
 
   const targets: pino.TransportTargetOptions[] = [
     {
@@ -114,5 +122,29 @@ export function initializeLogger(options?: { level?: LogLevel; logFile?: string 
 }
 
 export function createModuleLogger(moduleName: string): Logger {
-  return getLogger().child({ module: moduleName })
+  // 延迟初始化：避免模块顶层调用时 ConfigManager 尚未定义
+  let cached: Logger | null = null
+  const getChild = (): Logger => {
+    if (!cached) {
+      cached = getLogger().child({ module: moduleName })
+    }
+    return cached
+  }
+  return {
+    debug(message: string, context?: LogContext): void {
+      getChild().debug(message, context)
+    },
+    info(message: string, context?: LogContext): void {
+      getChild().info(message, context)
+    },
+    warn(message: string, context?: LogContext): void {
+      getChild().warn(message, context)
+    },
+    error(message: string, error?: Error, context?: LogContext): void {
+      getChild().error(message, error, context)
+    },
+    child(context: LogContext): Logger {
+      return getChild().child(context)
+    },
+  }
 }

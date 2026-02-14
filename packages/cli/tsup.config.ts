@@ -6,10 +6,7 @@ export default defineConfig({
   dts: false,
   clean: true,
   sourcemap: true,
-  splitting: false,
   target: 'node20',
-  external: ['react', 'ink'],
-  banner: {
-    js: '#!/usr/bin/env node',
-  },
+  external: ['bun:sqlite'],
+  banner: { js: '#!/usr/bin/env node' },
 })

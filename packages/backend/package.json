@@ -22,11 +22,14 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@wqbot/core": "workspace:*",
+    "@wqbot/knowledge": "workspace:*",
     "@wqbot/models": "workspace:*",
     "@wqbot/skills": "workspace:*",
     "@wqbot/storage": "workspace:*",
     "@wqbot/security": "workspace:*",
+    "ai": "^3.0.0",
     "fastify": "^4.26.0",
     "@fastify/cors": "^9.0.0",
     "@fastify/static": "^7.0.0",

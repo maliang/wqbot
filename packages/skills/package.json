@@ -18,11 +18,14 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@wqbot/core": "workspace:*",
+    "@wqbot/knowledge": "workspace:*",
     "@wqbot/security": "workspace:*",
-    "zod": "^3.22.0",
     "glob": "^10.3.0",
-    "semver": "^7.6.0"
+    "gray-matter": "^4.0.3",
+    "semver": "^7.6.0",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
     "@types/semver": "^7.5.0",

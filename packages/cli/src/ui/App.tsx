@@ -18,32 +18,11 @@ interface ChatMessage {
   timestamp: Date
 }
 
-// 内嵌 API 接口
-interface EmbeddedApi {
-  sendMessageStream: (
-    message: string,
-    conversationId?: string,
-    model?: string,
-    onChunk?: (chunk: string) => void,
-    onComplete?: (response: { conversationId: string; response: string }) => void,
-    onError?: (error: string) => void
-  ) => Promise<{ abort: () => void }>
-  listConversations: (limit?: number) => Promise<{ success: boolean; data: unknown[] }>
-  listConfigs: () => Promise<{ success: boolean; data: ConfigItem[] }>
-  listTasks: () => Promise<{ success: boolean; data: ParallelTask[] }>
-}
-
-// 获取内嵌 API
-function getEmbeddedApi(): EmbeddedApi | null {
-  return (globalThis as Record<string, unknown>).__wqbot_embedded_api__ as EmbeddedApi | null
-}
-
 interface AppProps {
   initialMessage?: string
   model?: string
   conversationId?: string
   singleMode?: boolean
-  embeddedMode?: boolean
 }
 
 export const App: React.FC<AppProps> = ({
@@ -51,7 +30,6 @@ export const App: React.FC<AppProps> = ({
   model: initialModel,
   conversationId: initialConversationId,
   singleMode = false,
-  embeddedMode = true
 }) => {
   const { exit } = useApp()
 
@@ -66,20 +44,11 @@ export const App: React.FC<AppProps> = ({
   const [systemMessage, setSystemMessage] = useState<string | null>(null)
   const [showWelcome, setShowWelcome] = useState(!initialMessage)
 
-  // 获取 API（内嵌或远程）
-  const getApi = useCallback(() => {
-    if (embeddedMode) {
-      return getEmbeddedApi()
-    }
-    return getApiClient()
-  }, [embeddedMode])
-
   // 加载配置
   useEffect(() => {
     const loadConfigs = async (): Promise<void> => {
       try {
-        const api = getApi()
-        if (!api) return
+        const api = getApiClient()
         const result = await api.listConfigs()
         if (result.success && result.data) {
           setConfigs(result.data as ConfigItem[])
@@ -90,14 +59,13 @@ export const App: React.FC<AppProps> = ({
     }
 
     loadConfigs()
-  }, [getApi])
+  }, [])
 
   // 加载任务
   useEffect(() => {
     const loadTasks = async (): Promise<void> => {
       try {
-        const api = getApi()
-        if (!api) return
+        const api = getApiClient()
         const result = await api.listTasks()
         if (result.success && result.data) {
           setTasks(result.data as ParallelTask[])
@@ -110,7 +78,7 @@ export const App: React.FC<AppProps> = ({
     loadTasks()
     const interval = setInterval(loadTasks, 2000)
     return () => clearInterval(interval)
-  }, [getApi])
+  }, [])
 
   // 处理初始消息
   useEffect(() => {
@@ -137,86 +105,45 @@ export const App: React.FC<AppProps> = ({
         setIsStreaming(true)
         setStreamingContent('')
 
-        if (embeddedMode) {
-          // 内嵌模式
-          const api = getEmbeddedApi()
-          if (!api) {
-            throw new Error('内嵌 API 未初始化')
+        const api = getApiClient()
+        await api.sendMessageStream(
+          content,
+          conversationId,
+          model,
+          (chunk) => {
+            setStreamingContent((prev) => prev + chunk)
+          },
+          (response) => {
+            setConversationId(response.conversationId)
+            const assistantMessage: ChatMessage = {
+              id: Date.now().toString(),
+              role: 'assistant',
+              content: response.response,
+              timestamp: new Date()
+            }
+            setMessages((prev) => [...prev, assistantMessage])
+            setIsStreaming(false)
+            setStreamingContent('')
+            setIsLoading(false)
+
+            if (singleMode) {
+              exit()
+            }
+          },
+          (error) => {
+            setSystemMessage(`错误: ${error}`)
+            setIsStreaming(false)
+            setStreamingContent('')
+            setIsLoading(false)
           }
-
-          await api.sendMessageStream(
-            content,
-            conversationId,
-            model,
-            (chunk) => {
-              setStreamingContent((prev) => prev + chunk)
-            },
-            (response) => {
-              setConversationId(response.conversationId)
-              const assistantMessage: ChatMessage = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: response.response,
-                timestamp: new Date()
-              }
-              setMessages((prev) => [...prev, assistantMessage])
-              setIsStreaming(false)
-              setStreamingContent('')
-              setIsLoading(false)
-
-              if (singleMode) {
-                exit()
-              }
-            },
-            (error) => {
-              setSystemMessage(`错误: ${error}`)
-              setIsStreaming(false)
-              setStreamingContent('')
-              setIsLoading(false)
-            }
-          )
-        } else {
-          // 远程模式
-          const api = getApiClient()
-          api.createChatStream(
-            content,
-            conversationId,
-            model,
-            (chunk) => {
-              setStreamingContent((prev) => prev + chunk)
-            },
-            (response) => {
-              setConversationId(response.conversationId)
-              const assistantMessage: ChatMessage = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: response.response,
-                timestamp: new Date()
-              }
-              setMessages((prev) => [...prev, assistantMessage])
-              setIsStreaming(false)
-              setStreamingContent('')
-              setIsLoading(false)
-
-              if (singleMode) {
-                exit()
-              }
-            },
-            (error) => {
-              setSystemMessage(`错误: ${error}`)
-              setIsStreaming(false)
-              setStreamingContent('')
-              setIsLoading(false)
-            }
-          )
-        }
+        )
       } catch (error) {
         setSystemMessage(`发送失败: ${error instanceof Error ? error.message : '未知错误'}`)
         setIsLoading(false)
         setIsStreaming(false)
       }
     },
-    [conversationId, model, singleMode, exit, embeddedMode]
+    [conversationId, model, singleMode, exit]
   )
 
   // 处理输入

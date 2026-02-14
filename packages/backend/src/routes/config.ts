@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { getConfigWatcher } from '@wqbot/core'
 import { getSSEManager } from '../sse.js'
 import type { ApiResponse, ConfigItem, ConfigType, ConfigGenerateRequest } from '../types.js'
 
@@ -43,7 +44,8 @@ async function listConfigFiles(type: ConfigType, scope: 'global' | 'project'): P
           type,
           scope,
           enabled: true, // TODO: 从配置文件读取启用状态
-          path: filePath
+          path: filePath,
+          updatedAt: stat.mtime,
         })
       }
     }
@@ -57,7 +59,7 @@ async function listConfigFiles(type: ConfigType, scope: 'global' | 'project'): P
 // 读取配置文件内容
 async function readConfigFile(type: ConfigType, name: string, scope: 'global' | 'project'): Promise<string | null> {
   const baseDir = getConfigDir(scope)
-  const extensions = type === 'skills' ? ['.ts', '.js'] : type === 'agents' ? ['.yaml', '.yml'] : ['.md']
+  const extensions = type === 'skills' ? ['.ts', '.js'] : ['.md']
 
   for (const ext of extensions) {
     const filePath = path.join(baseDir, type, `${name}${ext}`)
@@ -82,7 +84,7 @@ async function writeConfigFile(
   const typeDir = path.join(baseDir, type)
   await ensureDir(typeDir)
 
-  const ext = type === 'skills' ? '.ts' : type === 'agents' ? '.yaml' : '.md'
+  const ext = type === 'skills' ? '.ts' : '.md'
   const filePath = path.join(typeDir, `${name}${ext}`)
 
   await fs.writeFile(filePath, content, 'utf-8')
@@ -92,7 +94,7 @@ async function writeConfigFile(
 // 删除配置文件
 async function deleteConfigFile(type: ConfigType, name: string, scope: 'global' | 'project'): Promise<boolean> {
   const baseDir = getConfigDir(scope)
-  const extensions = type === 'skills' ? ['.ts', '.js'] : type === 'agents' ? ['.yaml', '.yml'] : ['.md']
+  const extensions = type === 'skills' ? ['.ts', '.js'] : ['.md']
 
   for (const ext of extensions) {
     const filePath = path.join(baseDir, type, `${name}${ext}`)
@@ -111,7 +113,7 @@ export async function configRoutes(fastify: FastifyInstance): Promise<void> {
   const sseManager = getSSEManager()
 
   // 获取所有配置
-  fastify.get('/api/config', async (request, reply) => {
+  fastify.get('/api/config', async (_request, reply) => {
     const globalRules = await listConfigFiles('rules', 'global')
     const globalSkills = await listConfigFiles('skills', 'global')
     const globalAgents = await listConfigFiles('agents', 'global')
@@ -207,7 +209,8 @@ export async function configRoutes(fastify: FastifyInstance): Promise<void> {
         scope: actualScope,
         enabled: true,
         path: '',
-        content
+        content,
+        updatedAt: new Date(),
       }
     }
     return reply.send(response)
@@ -295,7 +298,7 @@ export async function configRoutes(fastify: FastifyInstance): Promise<void> {
         template = `// ${description}\n\nimport type { SkillInput, SkillOutput } from '@wqbot/core'\n\nexport async function execute(input: SkillInput): Promise<SkillOutput> {\n  // TODO: 实现技能逻辑\n  return {\n    success: true,\n    data: {}\n  }\n}\n`
         break
       case 'agents':
-        template = `# ${description}\n\nname: new-agent\ndescription: ${description}\n\nprompt: |\n  你是一个专业的助手...\n\ntools:\n  - read\n  - write\n  - search\n`
+        template = `---\nname: new-agent\ndescription: ${description}\nmode: primary\ntriggers: []\n---\n\n你是一个专业的助手...\n`
         break
     }
 
@@ -318,8 +321,13 @@ export async function configRoutes(fastify: FastifyInstance): Promise<void> {
     const { type, name } = request.params
     const { enabled, scope = 'project' } = request.body
 
-    // TODO: 实现配置启用/禁用逻辑
-    // 可以通过在配置目录下维护一个 .disabled 文件列表
+    const configWatcher = getConfigWatcher()
+
+    if (enabled) {
+      configWatcher.enable(type, name, scope)
+    } else {
+      configWatcher.disable(type, name, scope)
+    }
 
     sseManager.sendConfigChange(type, name, 'updated')
 
@@ -328,5 +336,35 @@ export async function configRoutes(fastify: FastifyInstance): Promise<void> {
       data: { enabled }
     }
     return reply.send(response)
+  })
+
+  // POST /api/mcp/reload — 手动触发 MCP 全量重载
+  fastify.post('/api/mcp/reload', async (_request, reply) => {
+    try {
+      const { getConfigManager } = await import('@wqbot/core')
+      await getConfigManager().reloadConfig()
+
+      const { getMCPClientManager, getToolRegistry } = await import('@wqbot/skills')
+      const mcpManager = getMCPClientManager()
+      await mcpManager.reload()
+
+      const toolRegistry = getToolRegistry()
+      for (const toolDef of mcpManager.getToolDefinitions()) {
+        toolRegistry.register(toolDef)
+      }
+
+      sseManager.sendConfigChange('mcp', 'config', 'updated')
+      return reply.send({ success: true, data: { status: mcpManager.getStatus() } })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      return reply.status(500).send({ success: false, error: message })
+    }
+  })
+
+  // GET /api/mcp/status — 获取所有 MCP 服务器状态
+  fastify.get('/api/mcp/status', async (_request, reply) => {
+    const { getMCPClientManager } = await import('@wqbot/skills')
+    const mcpManager = getMCPClientManager()
+    return reply.send({ success: true, data: mcpManager.getStatus() })
   })
 }

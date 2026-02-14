@@ -6,6 +6,9 @@ import { configRoutes } from './routes/config.js'
 import { skillsRoutes } from './routes/skills.js'
 import { settingsRoutes } from './routes/settings.js'
 import { tasksRoutes } from './routes/tasks.js'
+import { snapshotRoutes } from './routes/snapshot.js'
+import { openaiRoutes } from './routes/openai.js'
+import { knowledgeRoutes } from './routes/knowledge.js'
 import { initializeSSE, getSSEManager } from './sse.js'
 
 const logger = createModuleLogger('backend')
@@ -17,9 +20,9 @@ export interface ServerOptions {
 }
 
 const DEFAULT_OPTIONS: Required<ServerOptions> = {
-  host: '127.0.0.1',
+  host: '0.0.0.0',
   port: 3721,
-  cors: true
+  cors: true,
 }
 
 let serverInstance: FastifyInstance | null = null
@@ -28,7 +31,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
   const opts = { ...DEFAULT_OPTIONS, ...options }
 
   const fastify = Fastify({
-    logger: false // 使用自定义 logger
+    logger: false, // 使用自定义 logger
   })
 
   // 初始化 SSE 管理器
@@ -40,7 +43,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
       origin: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
-      credentials: true
+      credentials: true,
     })
   }
 
@@ -54,7 +57,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
     logger.error('请求错误:', error)
     reply.status(500).send({
       success: false,
-      error: error.message || '服务器内部错误'
+      error: error.message || '服务器内部错误',
     })
   })
 
@@ -65,8 +68,8 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
       data: {
         status: 'ok',
         timestamp: new Date().toISOString(),
-        connections: getSSEManager().getConnectionCount()
-      }
+        connections: getSSEManager().getConnectionCount(),
+      },
     }
   })
 
@@ -76,6 +79,9 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
   await fastify.register(skillsRoutes)
   await fastify.register(settingsRoutes)
   await fastify.register(tasksRoutes)
+  await fastify.register(snapshotRoutes)
+  await fastify.register(openaiRoutes)
+  await fastify.register(knowledgeRoutes)
 
   return fastify
 }
@@ -101,7 +107,7 @@ export async function startServer(options: ServerOptions = {}): Promise<FastifyI
 
     return fastify
   } catch (error) {
-    logger.error('启动服务器失败:', error)
+    logger.error('启动服务器失败:', error instanceof Error ? error : new Error(String(error)))
     throw error
   }
 }
@@ -119,7 +125,7 @@ export async function stopServer(): Promise<void> {
     serverInstance = null
     logger.info('服务器已停止')
   } catch (error) {
-    logger.error('停止服务器失败:', error)
+    logger.error('停止服务器失败:', error instanceof Error ? error : new Error(String(error)))
     throw error
   }
 }

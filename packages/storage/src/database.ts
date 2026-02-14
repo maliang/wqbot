@@ -1,29 +1,13 @@
-import initSqlJs from 'sql.js'
+import { Database as BunDatabase } from 'bun:sqlite'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { getConfigManager, createModuleLogger } from '@wqbot/core'
 
-// Type definitions for sql.js
-interface SqlJsDatabase {
-  run(sql: string, params?: SqlValue[]): SqlJsDatabase
-  exec(sql: string, params?: SqlValue[]): QueryExecResult[]
-  export(): Uint8Array
-  close(): void
-}
-
-interface QueryExecResult {
-  columns: string[]
-  values: SqlValue[][]
-}
-
-type SqlValue = string | number | Uint8Array | null
-
 const logger = createModuleLogger('database')
 
 export class DatabaseWrapper {
-  private db: SqlJsDatabase | null = null
+  private db: BunDatabase | null = null
   private readonly dbPath: string
-  private saveTimeout: ReturnType<typeof setTimeout> | null = null
 
   constructor(dbPath?: string) {
     const config = getConfigManager()
@@ -31,37 +15,28 @@ export class DatabaseWrapper {
   }
 
   async initialize(): Promise<void> {
-    // Ensure directory exists
+    // 确保目录存在
     const dir = path.dirname(this.dbPath)
     if (!fs.existsSync(dir)) {
-      await fs.promises.mkdir(dir, { recursive: true })
+      fs.mkdirSync(dir, { recursive: true })
     }
 
-    // Initialize sql.js
-    const SQL = await initSqlJs()
+    this.db = new BunDatabase(this.dbPath)
 
-    // Load existing database or create new one
-    if (fs.existsSync(this.dbPath)) {
-      const buffer = await fs.promises.readFile(this.dbPath)
-      this.db = new SQL.Database(buffer)
-    } else {
-      this.db = new SQL.Database()
-    }
+    // 启用 WAL 模式提升并发性能
+    this.db.exec('PRAGMA journal_mode=WAL')
+    this.db.exec('PRAGMA foreign_keys=ON')
 
-    // Run migrations
-    await this.runMigrations()
-
-    // Save initial state
-    await this.save()
+    this.runMigrations()
 
     logger.info('Database initialized', { path: this.dbPath })
   }
 
-  private async runMigrations(): Promise<void> {
+  private runMigrations(): void {
     const db = this.getDb()
 
-    // Create migrations table
-    db.run(`
+    // 创建 migrations 表
+    db.exec(`
       CREATE TABLE IF NOT EXISTS migrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
@@ -69,13 +44,11 @@ export class DatabaseWrapper {
       )
     `)
 
-    // Get applied migrations
-    const appliedResult = db.exec('SELECT name FROM migrations')
-    const applied = new Set(
-      appliedResult.length > 0 ? appliedResult[0]!.values.map((row) => row[0] as string) : []
-    )
+    // 获取已应用的 migrations
+    const appliedRows = db.prepare('SELECT name FROM migrations').all() as Array<{ name: string }>
+    const applied = new Set(appliedRows.map((row) => row.name))
 
-    // Define migrations
+    // 定义 migrations
     const migrations: Array<{ name: string; sql: string }> = [
       {
         name: '001_create_conversations',
@@ -144,53 +117,42 @@ export class DatabaseWrapper {
           );
         `,
       },
+      {
+        name: '006_add_token_fields',
+        sql: `
+          ALTER TABLE messages ADD COLUMN compacted_at TEXT;
+          ALTER TABLE messages ADD COLUMN is_summary INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE messages ADD COLUMN token_count INTEGER;
+        `,
+      },
+      {
+        name: '007_add_pinned_field',
+        sql: `
+          ALTER TABLE messages ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;
+        `,
+      },
     ]
 
-    // Apply pending migrations
+    // 应用待执行的 migrations
+    const insertMigration = db.prepare('INSERT INTO migrations (name) VALUES (?)')
     for (const migration of migrations) {
       if (!applied.has(migration.name)) {
         logger.debug(`Applying migration: ${migration.name}`)
-        db.run(migration.sql)
-        db.run('INSERT INTO migrations (name) VALUES (?)', [migration.name])
+        db.exec(migration.sql)
+        insertMigration.run(migration.name)
       }
     }
-
-    await this.save()
   }
 
-  getDb(): SqlJsDatabase {
+  getDb(): BunDatabase {
     if (!this.db) {
       throw new Error('Database not initialized')
     }
     return this.db
   }
 
-  private async save(): Promise<void> {
-    if (!this.db) return
-
-    const data = this.db.export()
-    const buffer = Buffer.from(data)
-    await fs.promises.writeFile(this.dbPath, buffer)
-  }
-
-  private scheduleSave(): void {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout)
-    }
-    this.saveTimeout = setTimeout(() => {
-      this.save().catch((err) => {
-        logger.error('Failed to save database', err instanceof Error ? err : undefined)
-      })
-    }, 100)
-  }
-
   close(): void {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout)
-    }
     if (this.db) {
-      // Save before closing
-      this.save().catch(() => {})
       this.db.close()
       this.db = null
       logger.debug('Database closed')
@@ -198,69 +160,44 @@ export class DatabaseWrapper {
   }
 
   /**
-   * Run a query and return all results
+   * 执行查询并返回所有结果
    */
   query<T>(sql: string, params: unknown[] = []): T[] {
     const db = this.getDb()
-    const result = db.exec(sql, params as (string | number | null | Uint8Array)[])
-
-    if (result.length === 0) {
-      return []
-    }
-
-    const columns = result[0]!.columns
-    return result[0]!.values.map((row) => {
-      const obj: Record<string, unknown> = {}
-      columns.forEach((col, i) => {
-        obj[col] = row[i]
-      })
-      return obj as T
-    })
+    return db.prepare(sql).all(...params) as T[]
   }
 
   /**
-   * Run a query and return the first result
+   * 执行查询并返回第一条结果
    */
   queryOne<T>(sql: string, params: unknown[] = []): T | undefined {
-    const results = this.query<T>(sql, params)
-    return results[0]
+    const db = this.getDb()
+    return db.prepare(sql).get(...params) as T | undefined
   }
 
   /**
-   * Run an insert/update/delete statement
+   * 执行 insert/update/delete 语句
    */
   run(sql: string, params: unknown[] = []): { changes: number; lastInsertRowid: number } {
     const db = this.getDb()
-    db.run(sql, params as (string | number | null | Uint8Array)[])
-    this.scheduleSave()
-
-    // Get changes and last insert rowid
-    const changesResult = db.exec('SELECT changes() as changes, last_insert_rowid() as lastId')
-    const changes = changesResult[0]?.values[0]?.[0] as number ?? 0
-    const lastInsertRowid = changesResult[0]?.values[0]?.[1] as number ?? 0
-
-    return { changes, lastInsertRowid }
+    const result = db.prepare(sql).run(...params)
+    return {
+      changes: result.changes,
+      lastInsertRowid: Number(result.lastInsertRowid),
+    }
   }
 
   /**
-   * Run multiple statements in a transaction
+   * 在事务中执行多条语句
    */
   transaction<T>(fn: () => T): T {
     const db = this.getDb()
-    db.run('BEGIN TRANSACTION')
-    try {
-      const result = fn()
-      db.run('COMMIT')
-      this.scheduleSave()
-      return result
-    } catch (error) {
-      db.run('ROLLBACK')
-      throw error
-    }
+    const tx = db.transaction(fn)
+    return tx()
   }
 }
 
-// Singleton instance
+// 单例
 let databaseInstance: DatabaseWrapper | null = null
 
 export function getDatabase(): DatabaseWrapper {
@@ -276,5 +213,4 @@ export async function initializeDatabase(): Promise<DatabaseWrapper> {
   return db
 }
 
-// Re-export as Database for convenience
 export { DatabaseWrapper as Database }

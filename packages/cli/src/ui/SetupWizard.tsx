@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Box, Text, useInput, useApp } from 'ink'
 import TextInput from 'ink-text-input'
-import { loadApiConfig, saveApiConfig, type ApiConfig } from '@wqbot/core'
+import { loadApiConfig, saveApiConfig } from '@wqbot/core'
 
 type SetupStep = 'welcome' | 'provider' | 'apiKey' | 'model' | 'complete'
 
@@ -19,29 +19,29 @@ const PROVIDERS: Provider[] = [
     name: 'OpenAI',
     description: 'GPT-4o, GPT-4, GPT-3.5 等',
     requiresKey: true,
-    defaultModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo']
+    defaultModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
   },
   {
     id: 'anthropic',
     name: 'Anthropic',
     description: 'Claude 4.5, Claude 3.5 等',
     requiresKey: true,
-    defaultModels: ['claude-sonnet-4-5-20250514', 'claude-3-5-sonnet-20241022']
+    defaultModels: ['claude-sonnet-4-5-20250514', 'claude-3-5-sonnet-20241022'],
   },
   {
     id: 'deepseek',
     name: 'DeepSeek',
     description: 'DeepSeek Chat, DeepSeek Coder',
     requiresKey: true,
-    defaultModels: ['deepseek-chat', 'deepseek-coder']
+    defaultModels: ['deepseek-chat', 'deepseek-coder'],
   },
   {
     id: 'ollama',
     name: 'Ollama (本地)',
     description: '本地运行，无需 API Key',
     requiresKey: false,
-    defaultModels: ['llama3', 'codellama', 'mistral']
-  }
+    defaultModels: ['llama3', 'codellama', 'mistral'],
+  },
 ]
 
 interface SetupWizardProps {
@@ -108,42 +108,26 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
 
   const saveConfig = async () => {
     try {
-      const config = await loadApiConfig()
+      const config = (await loadApiConfig()) as any
       const provider = currentProvider
 
       if (!provider) return
 
-      const updatedConfig: ApiConfig = {
+      // 使用新配置格式：providers.*
+      const updatedConfig = {
         ...config,
         defaultProvider: provider.id,
-        defaultModel: provider.defaultModels[selectedModel] || provider.defaultModels[0]
-      }
-
-      if (provider.id === 'openai') {
-        updatedConfig.openai = {
-          ...config.openai,
-          apiKey: apiKey || undefined,
-          models: provider.defaultModels
-        }
-      } else if (provider.id === 'anthropic') {
-        updatedConfig.anthropic = {
-          ...config.anthropic,
-          apiKey: apiKey || undefined,
-          models: provider.defaultModels
-        }
-      } else if (provider.id === 'deepseek') {
-        updatedConfig.deepseek = {
-          ...config.deepseek,
-          apiKey: apiKey || undefined,
-          baseUrl: 'https://api.deepseek.com',
-          models: provider.defaultModels
-        }
-      } else if (provider.id === 'ollama') {
-        updatedConfig.ollama = {
-          ...config.ollama,
-          host: 'http://localhost:11434',
-          models: provider.defaultModels
-        }
+        defaultModel: provider.defaultModels[selectedModel] || provider.defaultModels[0],
+        providers: {
+          ...config.providers,
+          [provider.id]: {
+            ...config.providers?.[provider.id],
+            apiKey: apiKey || undefined,
+            ...(provider.id === 'ollama' ? { host: 'http://localhost:11434' } : {}),
+            ...(provider.id === 'deepseek' ? { baseUrl: 'https://api.deepseek.com' } : {}),
+            models: provider.defaultModels,
+          },
+        },
       }
 
       await saveApiConfig(updatedConfig)
@@ -163,7 +147,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
       </Box>
       <Box>
         <Text color="cyan" bold>
-          ║           WQBot 首次运行配置向导                          ║
+          ║ WQBot 首次运行配置向导 ║
         </Text>
       </Box>
       <Box marginBottom={1}>
@@ -187,7 +171,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
       {step === 'provider' && (
         <Box flexDirection="column">
           <Text bold>选择 AI 模型提供商：</Text>
-          <Text color="gray" dimColor>使用 ↑↓ 选择，Enter 确认</Text>
+          <Text color="gray" dimColor>
+            使用 ↑↓ 选择，Enter 确认
+          </Text>
           <Box flexDirection="column" marginTop={1}>
             {PROVIDERS.map((provider, index) => (
               <Box key={provider.id}>
@@ -196,7 +182,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
                   {provider.name}
                 </Text>
                 <Text color="gray" dimColor>
-                  {' '}- {provider.description}
+                  {' '}
+                  - {provider.description}
                 </Text>
               </Box>
             ))}
@@ -209,9 +196,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
         <Box flexDirection="column">
           <Text bold>输入 {currentProvider.name} API Key：</Text>
           <Text color="gray" dimColor>
-            获取地址: {currentProvider.id === 'openai' ? 'https://platform.openai.com/api-keys' :
-              currentProvider.id === 'anthropic' ? 'https://console.anthropic.com/settings/keys' :
-              currentProvider.id === 'deepseek' ? 'https://platform.deepseek.com/api_keys' : ''}
+            获取地址:{' '}
+            {currentProvider.id === 'openai'
+              ? 'https://platform.openai.com/api-keys'
+              : currentProvider.id === 'anthropic'
+                ? 'https://console.anthropic.com/settings/keys'
+                : currentProvider.id === 'deepseek'
+                  ? 'https://platform.deepseek.com/api_keys'
+                  : ''}
           </Text>
           <Box marginTop={1}>
             <Text color="green">{'> '}</Text>
@@ -235,7 +227,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
       {step === 'model' && currentProvider && (
         <Box flexDirection="column">
           <Text bold>选择默认模型：</Text>
-          <Text color="gray" dimColor>使用 ↑↓ 选择，Enter 确认</Text>
+          <Text color="gray" dimColor>
+            使用 ↑↓ 选择，Enter 确认
+          </Text>
           <Box flexDirection="column" marginTop={1}>
             {currentProvider.defaultModels.map((model, index) => (
               <Box key={model}>
@@ -257,7 +251,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
       {/* 完成 */}
       {step === 'complete' && currentProvider && (
         <Box flexDirection="column">
-          <Text color="green" bold>✓ 配置完成！</Text>
+          <Text color="green" bold>
+            ✓ 配置完成！
+          </Text>
           <Box marginTop={1} flexDirection="column">
             <Text>提供商: {currentProvider.name}</Text>
             <Text>默认模型: {currentProvider.defaultModels[selectedModel]}</Text>
@@ -271,7 +267,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
       {/* 底部提示 */}
       <Box marginTop={2}>
         <Text color="gray" dimColor>
-          Esc 退出 | 配置保存在 ~/.wqbot/api-keys.yaml
+          Esc 退出 | 配置保存在 ~/.wqbot/config.yaml
         </Text>
       </Box>
     </Box>

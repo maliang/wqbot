@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "build:sidecar": "node ../../scripts/build-sidecar.js",
+    "tauri:build": "npm run build:sidecar && tauri build",
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist"
   },

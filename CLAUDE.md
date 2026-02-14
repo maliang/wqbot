@@ -2,13 +2,14 @@
 
 ## 项目概述
 
-WQBot 是一个跨平台 AI 助手系统，支持多模型路由、动态技能系统和 Token 优化对话管理。
+WQBot 是一个跨平台 AI 助手系统，支持多模型路由、动态技能系统、MCP 集成、Agent 自动匹配、知识库检索和 Token 优化对话管理。
 
 ## 安装
 
 ### 快速安装
 
 **一键安装脚本:**
+
 ```bash
 # macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/user/wqbot/main/scripts/install.sh | bash
@@ -45,12 +46,12 @@ wqbot
 wqbot "你好，请介绍一下自己"
 
 # 指定模型
-wqbot -m claude-sonnet-4-5 "帮我写一个排序算法"
+wqbot -m claude-sonnet-4-20250514 "帮我写一个排序算法"
 
 # 重新配置 API
 wqbot --setup
 
-# 启动后端服务（供 GUI 使用，GUI 会自动启动）
+# 启动后端服务（供 GUI 或第三方工具使用）
 wqbot serve
 
 # 连接远程后端（独立模式）
@@ -59,46 +60,70 @@ wqbot --standalone --host 192.168.1.100 --port 3721
 
 ### 运行模式
 
-| 模式 | 命令 | 说明 |
-|------|------|------|
-| 对话模式 | `wqbot` | 默认模式，进入交互式对话 |
-| 单次模式 | `wqbot "问题"` | 回答后自动退出 |
-| 服务模式 | `wqbot serve` | 启动 HTTP 后端 |
-| 独立模式 | `wqbot --standalone` | 连接远程后端服务 |
+| 模式     | 命令                 | 说明                     |
+| -------- | -------------------- | ------------------------ |
+| 对话模式 | `wqbot`              | 默认模式，进入交互式对话 |
+| 单次模式 | `wqbot "问题"`       | 回答后自动退出           |
+| 服务模式 | `wqbot serve`        | 启动 HTTP 后端           |
+| 独立模式 | `wqbot --standalone` | 连接远程后端服务         |
+
+### CLI 选项
+
+| 选项                      | 说明                       |
+| ------------------------- | -------------------------- |
+| `-m, --model <model>`     | 指定使用的模型             |
+| `-c, --conversation <id>` | 继续指定的对话             |
+| `--serve`                 | 启动后端服务               |
+| `--standalone`            | 独立模式，连接远程后端     |
+| `--port <port>`           | 服务端口（默认 3721）      |
+| `--host <host>`           | 服务地址（默认 127.0.0.1） |
+| `--no-history`            | 不加载历史记录             |
+| `--setup`                 | 重新运行配置向导           |
 
 ## 技术栈
 
-- **运行时**: Node.js 20+
-- **包管理**: pnpm (monorepo)
+- **运行时**: Bun (编译为独立二进制) / Node.js 20+
+- **包管理**: pnpm 8.15+ (monorepo)
 - **语言**: TypeScript (ESM)
 - **后端**: Fastify + SSE
 - **CLI**: Commander.js + Ink (React CLI)
-- **GUI**: Tauri + React + Vite
-- **数据库**: SQLite (sql.js)
+- **GUI**: Tauri 1.x + React + Vite + Zustand
+- **数据库**: bun:sqlite (WAL 模式)
+- **AI SDK**: Vercel AI SDK (`ai` + `@ai-sdk/*`)
+- **MCP**: `@modelcontextprotocol/sdk`
 - **测试**: Vitest
+- **版本管理**: Changesets (fixed 模式)
 
 ## 项目结构
 
 ```
 packages/
-├── backend/      # HTTP 后端服务 (Fastify)
-├── cli/          # CLI 客户端 (Ink)
-├── gui-tauri/    # Tauri 桌面应用
-├── core/         # 核心模块 (配置、日志、事件、i18n、API配置)
-├── storage/      # 存储模块 (SQLite、对话、设置、Token优化)
-├── models/       # AI 模型路由 (OpenAI、Anthropic、DeepSeek、Ollama)
-├── skills/       # 技能系统 (注册、市场、执行)
-└── security/     # 安全模块 (沙箱、权限、审计)
+├── core/         # 核心模块 (配置、日志、事件、i18n、主题、API配置、快照、配置热加载)
+├── models/       # AI 模型路由 (OpenAI、Anthropic、Google、Groq、DeepSeek、Ollama、Custom)
+├── storage/      # 存储模块 (bun:sqlite、对话管理、设置、Token 三阶段优化)
+├── knowledge/    # 知识库 (FTS5 全文检索、向量语义检索、文档分块、Embedding、知识工具)
+├── skills/       # 技能系统 (注册、市场、Markdown 技能、MCP 客户端、Agent 管理、工具注册)
+├── security/     # 安全模块 (沙箱、权限、命令解析、审计)
+├── backend/      # HTTP 后端服务 (Fastify + SSE + OpenAI 兼容接口)
+├── cli/          # CLI 客户端 (Commander.js + Ink)
+└── gui-tauri/    # Tauri 桌面应用 (React + Vite + Zustand, sidecar 架构)
 
 scripts/
-├── install.js        # Node.js 安装脚本
-├── install.sh        # macOS/Linux 一键安装
-├── install.ps1       # Windows PowerShell 安装
-└── build-installer.js # 安装包构建脚本
+├── install.js          # Node.js 安装脚本
+├── install.sh          # macOS/Linux 一键安装
+├── install.ps1         # Windows PowerShell 安装
+├── build-sidecar.js    # Bun compile 构建 sidecar 二进制
+├── build-installer.js  # 安装包构建脚本
+├── version-sync.js     # 版本号同步 (core → Cargo.toml, tauri.conf.json, 根 package.json)
+├── generate-homebrew.js # Homebrew formula 生成
+└── generate-scoop.js   # Scoop manifest 生成
 
-.github/
-└── workflows/
-    └── release.yml   # GitHub Actions 自动构建发布
+docs/
+├── opencode-reference-plan.md  # OpenCode 参考重构方案
+└── review-issues.md            # 代码审查问题记录
+
+.github/workflows/
+└── release.yml   # GitHub Actions 自动构建发布 (Changesets + 多平台构建)
 ```
 
 ## 常用命令
@@ -117,8 +142,15 @@ pnpm dev:gui          # Tauri GUI 开发
 pnpm build            # 构建所有包
 pnpm build:cli        # 构建 CLI
 pnpm build:backend    # 构建后端
-pnpm build:gui        # 构建 Tauri GUI
+pnpm build:gui        # 构建 Tauri GUI (含 sidecar)
+pnpm build:sidecar    # 仅构建 sidecar 二进制
 pnpm build:installer  # 构建安装包
+
+# 发布构建
+pnpm dist             # 版本同步 + 完整安装包构建
+pnpm dist:win         # Windows (.exe, .msi)
+pnpm dist:mac         # macOS (.dmg)
+pnpm dist:linux       # Linux (.AppImage, .deb)
 
 # 运行
 pnpm start            # 启动 CLI
@@ -133,6 +165,10 @@ pnpm lint             # ESLint 检查
 pnpm lint:fix         # 自动修复
 pnpm typecheck        # TypeScript 类型检查
 
+# 版本管理
+pnpm changeset        # 创建 changeset
+pnpm version-packages # 应用版本变更 + 同步
+
 # 清理
 pnpm clean            # 清理构建产物
 ```
@@ -143,11 +179,10 @@ pnpm clean            # 清理构建产物
 
 ```
 全局: ~/.wqbot/
-├── api-keys.yaml   # API 密钥配置（CLI/GUI 共用）
-├── config.yaml     # 通用配置
+├── config.yaml     # 主配置文件（API 密钥、应用配置、模型路由、知识库）
 ├── rules/          # 全局规则 (*.md)
-├── skills/         # 全局技能 (*.ts)
-└── agents/         # 全局代理 (*.yaml)
+├── skills/         # 全局技能 (*.md, *.ts)
+└── agents/         # 全局代理 (*.md)
 
 项目: .wqbot/
 ├── config.yaml     # 项目配置（覆盖全局）
@@ -156,30 +191,152 @@ pnpm clean            # 清理构建产物
 └── agents/         # 项目代理
 ```
 
-### 热加载
+### 统一配置 (config.yaml)
 
-配置文件变更后自动生效，无需重启。
-
-### API 配置
-
-CLI 和 GUI 共享 `~/.wqbot/api-keys.yaml` 配置文件：
+WQBot 使用**单一配置文件** `config.yaml`，统一管理所有配置：
 
 ```yaml
-defaultProvider: anthropic
-defaultModel: claude-sonnet-4-5
+# ===== 默认模型 =====
+defaultProvider: openai
+defaultModel: gpt-4o
 
-anthropic:
-  apiKey: sk-ant-xxx
+# ===== API Providers =====
+# 格式：apiKey（可选）、baseUrl/host（可选）、models（可选）
+# models: 字符串 或 { id, alias }
+providers:
+  openai:
+    apiKey: sk-xxx
+    baseUrl: https://api.openai.com/v1
+    models:
+      - gpt-4o
+      - gpt-4o-mini
+      - { id: o1, alias: o1 }
 
-openai:
-  apiKey: sk-xxx
+  anthropic:
+    apiKey: sk-ant-xxx
+    models:
+      - claude-sonnet-4-20250514
 
-deepseek:
-  apiKey: sk-xxx
+  google:
+    apiKey: xxx
+    models:
+      - gemini-2.0-flash
 
-ollama:
-  host: http://localhost:11434
+  deepseek:
+    apiKey: sk-xxx
+    models:
+      - deepseek-chat
+
+  ollama:
+    host: http://localhost:11434
+    models:
+      - llama3:8b
+
+  groq:
+    apiKey: gsk-xxx
+    models:
+      - llama3-70b-8192
+
+# ===== 模型路由 =====
+routing:
+  strategy: balanced
+  fallbackChain:
+    - openai
+    - anthropic
+    - ollama
+  taskMapping:
+    simple_qa: [gpt-4o-mini, claude-3-5-haiku-20241022]
+    code_generation: [claude-sonnet-4-20250514, deepseek-chat, gpt-4o]
+    complex_reasoning: [claude-opus-4-20250514, gpt-4o, o1]
+
+# ===== 知识库（默认开启）=====
+knowledge:
+  enabled: true
+  chunkSize: 1500
+  chunkOverlap: 200
+  embedding:
+    provider: ollama
+    model: nomic-embed-text
+  collections:
+    - name: default
+      dirs: [~/.wqbot/knowledge/]
+
+# ===== 安全沙箱 =====
+sandbox:
+  enabled: true
+  allowedPaths: []
+  blockedPaths: [.ssh, .env, credentials, .git/config]
+  blockedCommands: [rm -rf /, curl | bash, wget | bash]
+
+# ===== MCP 服务器 =====
+mcp:
+  filesystem:
+    type: local
+    command: [npx, -y, @modelcontextprotocol/server-filesystem, ~/docs]
 ```
+
+### 热加载
+
+配置文件变更后自动生效（通过 chokidar 监听），无需重启。变更通过 SSE 实时通知前端刷新。
+
+### 配置变量替换
+
+API Key 支持从环境变量或文件读取，避免明文存储：
+
+```yaml
+openai:
+  apiKey: "{env:OPENAI_API_KEY}"        # 从环境变量读取
+  # 或
+  apiKey: "{file:~/.secrets/openai.key}" # 从文件读取
+  # 或
+  apiKey: "${OPENAI_API_KEY}"            # 兼容语法
+```
+
+### 支持的 Provider
+
+| Provider  | 默认模型                 | 说明                   |
+| --------- | ------------------------ | ---------------------- |
+| openai    | gpt-4o-mini              | 需要 API Key           |
+| anthropic | claude-sonnet-4-20250514 | 需要 API Key           |
+| google    | gemini-pro               | 需要 API Key           |
+| groq      | llama3-70b-8192          | 需要 API Key           |
+| deepseek  | deepseek-chat            | 需要 API Key           |
+| ollama    | llama3:8b                | 本地运行，无需 Key     |
+| custom    | -                        | 自定义 OpenAI 兼容端点 |
+
+### 第三方 API / 代理服务
+
+WQBot 支持通过两种方式接入非官方的第三方 API（如 OpenRouter、API2D、one-api、new-api 等中转服务）：
+
+**方式 1：自定义 baseUrl**
+
+各 Provider 支持 `baseUrl` 配置，可指向代理/中转服务：
+
+```yaml
+# ~/.wqbot/config.yaml
+providers:
+  openai:
+    apiKey: sk-xxx
+    baseUrl: https://my-proxy.example.com/v1 # 指向中转服务
+```
+
+**方式 2：custom Provider**
+
+用于接入任意 OpenAI 兼容端点：
+
+```yaml
+# ~/.wqbot/config.yaml
+providers:
+  custom:
+    - name: openrouter
+      baseUrl: https://openrouter.ai/api/v1
+      apiKey: sk-or-xxx
+      models:
+        - openai/gpt-4o
+        - anthropic/claude-sonnet-4
+```
+
+> 注意：当前 custom Provider 仅支持使用数组中的第一个条目。多端点支持为后续增强计划。
 
 ## 编码规范
 
@@ -190,7 +347,7 @@ ollama:
 ```typescript
 // 错误
 function updateUser(user, name) {
-  user.name = name  // 禁止修改!
+  user.name = name // 禁止修改!
   return user
 }
 
@@ -227,7 +384,7 @@ import { z } from 'zod'
 
 const schema = z.object({
   email: z.string().email(),
-  age: z.number().int().min(0).max(150)
+  age: z.number().int().min(0).max(150),
 })
 
 const validated = schema.parse(input)
@@ -252,18 +409,70 @@ interface ApiResponse<T> {
 
 ### 主要端点
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/api/chat/send` | POST | 发送消息 (SSE 流式) |
-| `/api/chat/conversations` | GET | 对话列表 |
-| `/api/chat/conversations/:id` | GET | 获取对话 |
-| `/api/config` | GET | 配置列表 |
-| `/api/config/:type/:name` | PUT | 更新配置 |
-| `/api/config/:type/:name/toggle` | POST | 切换配置启用状态 |
-| `/api/settings` | GET/PUT | 获取/更新设置 |
-| `/api/skills` | GET | 技能列表 |
-| `/api/tasks` | GET | 任务列表 |
-| `/api/tasks/:id/cancel` | POST | 取消任务 |
+| 端点                                  | 方法    | 说明                |
+| ------------------------------------- | ------- | ------------------- |
+| `/api/health`                         | GET     | 健康检查            |
+| `/api/chat/send`                      | POST    | 发送消息 (SSE 流式) |
+| `/api/chat/send-sync`                 | POST    | 发送消息 (非流式)   |
+| `/api/chat/conversations`             | GET     | 对话列表            |
+| `/api/chat/conversations/:id`         | GET     | 获取对话            |
+| `/api/chat/conversations`             | POST    | 创建对话            |
+| `/api/chat/conversations/:id`         | DELETE  | 删除对话            |
+| `/api/chat/conversations/:id/pin`     | POST    | 标记消息为重要      |
+| `/api/chat/conversations/:id/unpin`   | POST    | 取消标记消息        |
+| `/api/chat/conversations/:id/export`  | GET     | 导出对话            |
+| `/api/chat/conversations/:id/compact` | POST    | 压缩上下文          |
+| `/api/chat/events`                    | GET     | SSE 事件流          |
+| `/api/config`                         | GET     | 配置列表            |
+| `/api/config/:type/:name`             | PUT     | 更新配置            |
+| `/api/config/:type/:name/toggle`      | POST    | 切换配置启用状态    |
+| `/api/settings`                       | GET/PUT | 获取/更新设置       |
+| `/api/skills`                         | GET     | 技能列表            |
+| `/api/skills/:name`                   | GET     | 技能详情            |
+| `/api/tasks`                          | GET     | 任务列表            |
+| `/api/tasks/:id`                      | GET     | 任务详情            |
+| `/api/tasks/:id/cancel`               | POST    | 取消任务            |
+| `/api/snapshot/track`                 | POST    | 创建 Git 快照       |
+| `/api/snapshot/list`                  | GET     | 快照列表            |
+| `/api/knowledge/collections`          | GET     | 知识库集合列表      |
+| `/api/knowledge/collections`          | POST    | 创建集合            |
+| `/api/knowledge/collections/:name`    | DELETE  | 删除集合            |
+| `/api/knowledge/documents`            | POST    | 添加文档            |
+| `/api/knowledge/documents/:id`        | DELETE  | 删除文档            |
+| `/api/knowledge/search`               | GET     | 搜索知识库          |
+| `/api/knowledge/reindex`              | POST    | 重新索引            |
+
+### OpenAI 兼容接口
+
+WQBot 提供 OpenAI Chat Completions 兼容接口，可直接对接 Cursor、Continue、Open WebUI、ChatBox 等第三方工具。
+
+| 端点                   | 方法 | 说明                        |
+| ---------------------- | ---- | --------------------------- |
+| `/v1/models`           | GET  | 返回可用模型列表            |
+| `/v1/chat/completions` | POST | 对话补全（支持流式/非流式） |
+
+**对接方式**：在第三方工具中配置：
+
+- API Base URL: `http://localhost:3721/v1`
+- API Key: 任意值（当前无认证）
+
+**请求示例**：
+
+```bash
+# 非流式
+curl http://localhost:3721/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}]}'
+
+# 流式
+curl http://localhost:3721/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}],"stream":true}'
+```
+
+**支持参数**: `model`、`messages`、`stream`、`temperature`、`max_tokens`、`top_p`
+
+**注意**：OpenAI 兼容接口为无状态接口，不经过对话存储和 Token 优化，调用方自行管理上下文。当前不支持 function calling / tool_choice。
 
 ## 安全注意事项
 
@@ -272,6 +481,33 @@ interface ApiResponse<T> {
 - 使用参数化查询防止 SQL 注入
 - 错误消息不泄露敏感信息
 - API Key 存储在用户目录，不提交到版本控制
+- 后端默认仅监听 `127.0.0.1`，通过 `--host` 参数控制访问范围
+
+## 架构说明
+
+### Bun Compile + Tauri Sidecar
+
+GUI 桌面应用采用 sidecar 架构：
+
+- `scripts/build-sidecar.js` 使用 `bun build --compile` 将 backend 和 CLI 编译为独立二进制
+- Tauri 通过 `externalBin` 配置启动 sidecar 进程
+- 数据库使用 `bun:sqlite` 原生绑定，无需额外依赖
+
+### Token 三阶段优化
+
+对话消息经过三阶段优化后发送给模型：
+
+1. 裁剪超出上下文窗口的历史消息
+2. 压缩早期对话摘要
+3. 保留最近消息完整性
+
+### 模型路由策略
+
+ModelRouter 支持三种路由策略：
+
+- `quality`: 优先选择最强模型
+- `economy`: 优先选择最便宜模型
+- `balanced`: 根据任务复杂度自动选择
 
 ## 调试
 
@@ -281,25 +517,27 @@ DEBUG=wqbot:* pnpm start
 
 # 查看特定模块日志
 DEBUG=wqbot:backend pnpm start:server
+DEBUG=wqbot:model-router pnpm start
 ```
 
 ## 构建安装包
 
 ```bash
 # 构建当前平台
-pnpm build:installer
+pnpm dist
 
 # 构建指定平台
-pnpm build:installer:win    # Windows (.exe, .msi)
-pnpm build:installer:mac    # macOS (.dmg)
-pnpm build:installer:linux  # Linux (.AppImage, .deb)
+pnpm dist:win    # Windows (.exe, .msi)
+pnpm dist:mac    # macOS (.dmg)
+pnpm dist:linux  # Linux (.AppImage, .deb)
 ```
 
 安装包输出目录：`dist/installers/`
 
 ## 发布流程
 
-1. 更新版本号：`pnpm version <major|minor|patch>`
-2. 创建 Git Tag：`git tag v0.1.0`
-3. 推送 Tag：`git push origin v0.1.0`
-4. GitHub Actions 自动构建并发布到 Releases
+1. 创建 changeset：`pnpm changeset`
+2. 应用版本变更：`pnpm version-packages`（自动同步到 Cargo.toml、tauri.conf.json）
+3. 提交并推送到 main 分支
+4. 创建 Git Tag：`git tag v0.x.x && git push origin v0.x.x`
+5. GitHub Actions 自动构建多平台安装包并发布到 Releases

@@ -1,4 +1,5 @@
 import type { FastifyReply } from 'fastify'
+import type { ConfigType } from '@wqbot/core'
 
 // SSE 连接管理
 export interface SSEConnection {
@@ -32,18 +33,8 @@ export interface ChatResponse {
   response: string
 }
 
-// 配置类型
-export type ConfigType = 'rules' | 'skills' | 'agents'
-
-// 配置项
-export interface ConfigItem {
-  name: string
-  type: ConfigType
-  scope: 'global' | 'project'
-  enabled: boolean
-  path: string
-  content?: string
-}
+// 配置类型（从 core 统一导出，避免重复定义）
+export type { ConfigType, ConfigItem } from '@wqbot/core'
 
 // 配置生成请求
 export interface ConfigGenerateRequest {
@@ -62,6 +53,9 @@ export interface ParallelTask {
   updatedAt: Date
   error?: string
 }
+
+// 快照信息（从 @wqbot/core 重导出以便路由使用）
+export type { SnapshotInfo } from '@wqbot/core'
 
 // 设置
 export interface Settings {

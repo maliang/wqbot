@@ -15,6 +15,7 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Environment
 .env
@@ -37,6 +38,12 @@ coverage/
 
 # User data (development)
 .wqbot/
+
+# Tauri signing keys
+.tauri/
+
+# Tauri sidecar binaries
+packages/gui-tauri/src-tauri/binaries/
 
 # Electron
 out/

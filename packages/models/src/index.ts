@@ -1,5 +1,11 @@
-export { BaseProvider, type ProviderOptions, type ChatMessage, type ChatResponse } from './base-provider.js'
-export { OpenAIProvider } from './openai-provider.js'
-export { AnthropicProvider } from './anthropic-provider.js'
-export { OllamaProvider } from './ollama-provider.js'
-export { ModelRouter, getModelRouter, initializeModelRouter } from './model-router.js'
+export { getSDK, getLanguageModel, clearSDKCache } from './provider.js'
+export {
+  ModelRouter,
+  getModelRouter,
+  initializeModelRouter,
+  type ChatMessage,
+  type ChatResponse,
+  type ChatOptions,
+  type ModelInfo,
+} from './model-router.js'
+export { convertToAITools, jsonSchemaToZod } from './tool-adapter.js'

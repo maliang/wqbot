@@ -9,6 +9,7 @@ export type {
   ExecutionResult,
   RoutingStrategy,
   ModelProvider,
+  ModelContextInfo,
   ModelConfig,
   ProviderConfig,
   RoutingConfig,
@@ -27,12 +28,7 @@ export type {
 export { PermissionSchema } from './types.js'
 
 // Configuration
-export {
-  ConfigManager,
-  getConfigManager,
-  initializeConfig,
-  type AppConfig,
-} from './config.js'
+export { ConfigManager, getConfigManager, initializeConfig } from './config.js'
 
 // Logging
 export {
@@ -47,6 +43,54 @@ export {
 
 // Events
 export { EventEmitter, getEventEmitter, on, emit } from './events.js'
+
+// I18n
+export {
+  initializeI18n,
+  t,
+  setLocale,
+  getLocale,
+  getAvailableLocales,
+  getLocaleDisplayName,
+  type Locale,
+  type TranslationData,
+} from './i18n.js'
+
+// Theme
+export {
+  getThemeManager,
+  initializeThemeManager,
+  ThemeColorsSchema,
+  ThemeSchema,
+  type Theme,
+  type ThemeColors,
+  type InkColorMap,
+} from './theme.js'
+
+// API Config (统一配置)
+export {
+  loadConfig as loadApiConfig,
+  saveConfig as saveApiConfig,
+  isApiConfigured,
+  getConfigPath as getApiConfigPath,
+  getConfigDir,
+  updateProviderConfig,
+  setDefaultModel,
+  getAvailableProviders,
+  getProviderApiKey,
+  getProviderBaseUrl,
+  expandVariables,
+  ConfigSchema,
+  type AppConfig,
+  type KnowledgeConfig,
+  type McpServerConfig,
+} from './api-config.js'
+
+// Config Watcher
+export { getConfigWatcher, initializeConfigWatcher, stopConfigWatcher } from './config-watcher.js'
+
+// Snapshot
+export { getSnapshotManager } from './snapshot.js'
 
 // Utilities
 export {
@@ -64,40 +108,3 @@ export {
   createDeferred,
   pMap,
 } from './utils.js'
-
-// Internationalization
-export {
-  t,
-  getLocale,
-  setLocale,
-  getAvailableLocales,
-  getLocaleDisplayName,
-  initializeI18n,
-  type Locale,
-} from './i18n.js'
-
-// Config Watcher
-export {
-  ConfigWatcher,
-  getConfigWatcher,
-  initializeConfigWatcher,
-  stopConfigWatcher,
-  type ConfigType,
-  type ConfigItem,
-  type ConfigChangeEvent,
-  type ConfigChangeCallback,
-} from './config-watcher.js'
-
-// API Config (统一配置)
-export {
-  loadApiConfig,
-  saveApiConfig,
-  isApiConfigured,
-  getApiConfigPath,
-  getConfigDir,
-  updateProviderConfig,
-  setDefaultModel,
-  getAvailableProviders,
-  ApiConfigSchema,
-  type ApiConfig,
-} from './api-config.js'

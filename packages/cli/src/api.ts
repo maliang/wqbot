@@ -18,14 +18,7 @@ export interface ChatResponse {
   response: string
 }
 
-export interface ConfigItem {
-  name: string
-  type: 'rules' | 'skills' | 'agents'
-  scope: 'global' | 'project'
-  enabled: boolean
-  path: string
-  content?: string
-}
+export type { ConfigItem } from '@wqbot/core'
 
 export interface ParallelTask {
   id: string
@@ -61,18 +54,15 @@ class ApiClient {
     this.baseUrl = url
   }
 
-  private async request<T>(
-    path: string,
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
+  private async request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${path}`
 
     const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers
-      }
+        ...options.headers,
+      },
     })
 
     return response.json() as Promise<ApiResponse<T>>
@@ -91,11 +81,11 @@ class ApiClient {
   ): Promise<ApiResponse<ChatResponse>> {
     return this.request('/api/chat/send-sync', {
       method: 'POST',
-      body: JSON.stringify({ message, conversationId, model })
+      body: JSON.stringify({ message, conversationId, model }),
     })
   }
 
-  // 流式聊天（返回 EventSource）
+  // 流式聊天（返回 AbortController）
   createChatStream(
     message: string,
     conversationId?: string,
@@ -112,7 +102,7 @@ class ApiClient {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message, conversationId, model }),
-          signal: controller.signal
+          signal: controller.signal,
         })
 
         const reader = response.body?.getReader()
@@ -123,6 +113,7 @@ class ApiClient {
 
         const decoder = new TextDecoder()
         let buffer = ''
+        let currentEvent = ''
 
         while (true) {
           const { done, value } = await reader.read()
@@ -134,12 +125,11 @@ class ApiClient {
 
           for (const line of lines) {
             if (line.startsWith('event: ')) {
-              const eventType = line.slice(7)
-              const dataLine = lines[lines.indexOf(line) + 1]
-              if (dataLine?.startsWith('data: ')) {
-                const data = JSON.parse(dataLine.slice(6))
-
-                switch (eventType) {
+              currentEvent = line.slice(7).trim()
+            } else if (line.startsWith('data: ') && currentEvent) {
+              try {
+                const data = JSON.parse(line.slice(6))
+                switch (currentEvent) {
                   case 'chunk':
                     onChunk?.(data.content)
                     break
@@ -150,7 +140,12 @@ class ApiClient {
                     onError?.(data.message)
                     break
                 }
+              } catch {
+                // 忽略无效 JSON
               }
+              currentEvent = ''
+            } else if (line.trim() === '') {
+              currentEvent = ''
             }
           }
         }
@@ -165,6 +160,26 @@ class ApiClient {
     return controller
   }
 
+  // 流式聊天（Promise 风格，与内嵌 API 签名一致）
+  async sendMessageStream(
+    message: string,
+    conversationId?: string,
+    model?: string,
+    onChunk?: (chunk: string) => void,
+    onComplete?: (response: ChatResponse) => void,
+    onError?: (error: string) => void
+  ): Promise<{ abort: () => void }> {
+    const controller = this.createChatStream(
+      message,
+      conversationId,
+      model,
+      onChunk,
+      onComplete,
+      onError
+    )
+    return { abort: () => controller.abort() }
+  }
+
   async listConversations(limit?: number): Promise<ApiResponse<Conversation[]>> {
     const query = limit ? `?limit=${limit}` : ''
     return this.request(`/api/chat/conversations${query}`)
@@ -177,13 +192,13 @@ class ApiClient {
   async createConversation(title?: string): Promise<ApiResponse<Conversation>> {
     return this.request('/api/chat/conversations', {
       method: 'POST',
-      body: JSON.stringify({ title })
+      body: JSON.stringify({ title }),
     })
   }
 
   async deleteConversation(id: string): Promise<ApiResponse<void>> {
     return this.request(`/api/chat/conversations/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
   }
 
@@ -217,7 +232,7 @@ class ApiClient {
   ): Promise<ApiResponse<{ path: string }>> {
     return this.request(`/api/config/${type}/${name}`, {
       method: 'PUT',
-      body: JSON.stringify({ content, scope })
+      body: JSON.stringify({ content, scope }),
     })
   }
 
@@ -228,7 +243,7 @@ class ApiClient {
   ): Promise<ApiResponse<void>> {
     const query = scope ? `?scope=${scope}` : ''
     return this.request(`/api/config/${type}/${name}${query}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
   }
 
@@ -240,7 +255,7 @@ class ApiClient {
   ): Promise<ApiResponse<{ enabled: boolean }>> {
     return this.request(`/api/config/${type}/${name}/toggle`, {
       method: 'POST',
-      body: JSON.stringify({ enabled, scope })
+      body: JSON.stringify({ enabled, scope }),
     })
   }
 
@@ -251,7 +266,7 @@ class ApiClient {
   ): Promise<ApiResponse<{ content: string; type: string; scope: string }>> {
     return this.request('/api/config/generate', {
       method: 'POST',
-      body: JSON.stringify({ type, description, scope })
+      body: JSON.stringify({ type, description, scope }),
     })
   }
 
@@ -271,25 +286,25 @@ class ApiClient {
   async installSkill(uri: string): Promise<ApiResponse<void>> {
     return this.request('/api/skills/install', {
       method: 'POST',
-      body: JSON.stringify({ uri })
+      body: JSON.stringify({ uri }),
     })
   }
 
   async uninstallSkill(name: string): Promise<ApiResponse<void>> {
     return this.request(`/api/skills/${name}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
   }
 
   async enableSkill(name: string): Promise<ApiResponse<void>> {
     return this.request(`/api/skills/${name}/enable`, {
-      method: 'POST'
+      method: 'POST',
     })
   }
 
   async disableSkill(name: string): Promise<ApiResponse<void>> {
     return this.request(`/api/skills/${name}/disable`, {
-      method: 'POST'
+      method: 'POST',
     })
   }
 
@@ -305,19 +320,19 @@ class ApiClient {
   async createTask(name: string): Promise<ApiResponse<ParallelTask>> {
     return this.request('/api/tasks', {
       method: 'POST',
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name }),
     })
   }
 
   async cancelTask(id: string): Promise<ApiResponse<ParallelTask>> {
     return this.request(`/api/tasks/${id}/cancel`, {
-      method: 'POST'
+      method: 'POST',
     })
   }
 
   async cancelAllTasks(): Promise<ApiResponse<{ cancelled: number }>> {
     return this.request('/api/tasks/cancel-all', {
-      method: 'POST'
+      method: 'POST',
     })
   }
 
@@ -329,7 +344,7 @@ class ApiClient {
   async updateSettings(settings: Record<string, unknown>): Promise<ApiResponse<void>> {
     return this.request('/api/settings', {
       method: 'PUT',
-      body: JSON.stringify(settings)
+      body: JSON.stringify(settings),
     })
   }
 
@@ -340,7 +355,7 @@ class ApiClient {
   async setSetting(key: string, value: unknown): Promise<ApiResponse<void>> {
     return this.request(`/api/settings/${key}`, {
       method: 'PUT',
-      body: JSON.stringify({ value })
+      body: JSON.stringify({ value }),
     })
   }
 
@@ -351,8 +366,51 @@ class ApiClient {
   async setLanguage(language: string): Promise<ApiResponse<void>> {
     return this.request('/api/settings/language', {
       method: 'PUT',
-      body: JSON.stringify({ language })
+      body: JSON.stringify({ language }),
     })
+  }
+
+  // 对话操作 API
+  async pinMessage(conversationId: string, messageId: string): Promise<ApiResponse<void>> {
+    return this.request(`/api/chat/conversations/${conversationId}/pin`, {
+      method: 'POST',
+      body: JSON.stringify({ messageId }),
+    })
+  }
+
+  async unpinMessage(conversationId: string, messageId: string): Promise<ApiResponse<void>> {
+    return this.request(`/api/chat/conversations/${conversationId}/unpin`, {
+      method: 'POST',
+      body: JSON.stringify({ messageId }),
+    })
+  }
+
+  async compactConversation(
+    conversationId: string,
+    force?: boolean
+  ): Promise<
+    ApiResponse<{
+      originalCount: number
+      compactedCount: number
+      pruned: number
+      summarized: boolean
+      summaryText?: string
+    }>
+  > {
+    return this.request(`/api/chat/conversations/${conversationId}/compact`, {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    })
+  }
+
+  async exportConversation(conversationId: string, format: 'json' | 'md' = 'md'): Promise<string> {
+    const response = await fetch(
+      `${this.baseUrl}/api/chat/conversations/${conversationId}/export?format=${format}`
+    )
+    if (!response.ok) {
+      throw new Error(`导出失败: ${response.statusText}`)
+    }
+    return response.text()
   }
 }
 

@@ -23,6 +23,10 @@ export interface Message {
   readonly content: string
   readonly timestamp: Date
   readonly metadata?: Record<string, unknown> | undefined
+  readonly compactedAt?: Date | undefined
+  readonly isSummary?: boolean | undefined
+  readonly tokenCount?: number | undefined
+  readonly isPinned?: boolean | undefined
 }
 
 // Conversation structure
@@ -55,6 +59,12 @@ export interface ExecutionResult<T = unknown> {
 // Model routing strategy
 export type RoutingStrategy = 'quality' | 'balanced' | 'economy'
 
+// 模型上下文信息（models 和 storage 共用）
+export interface ModelContextInfo {
+  readonly contextWindow: number
+  readonly maxOutputTokens: number
+}
+
 // Model provider types
 export type ModelProvider =
   | 'openai'
@@ -76,9 +86,12 @@ export interface ModelConfig {
 }
 
 // Provider configuration
+// 注意：这些类型已废弃，请使用 config.yaml 中的 providers 配置
 export interface ProviderConfig {
   readonly enabled: boolean
+  /** @deprecated 请使用 config.yaml */
   readonly apiKey?: string | undefined
+  /** @deprecated 请使用 config.yaml */
   readonly baseUrl?: string | undefined
   readonly models: readonly ModelConfig[]
 }
@@ -164,6 +177,7 @@ export type EventType =
   | 'skill:complete'
   | 'model:request'
   | 'model:response'
+  | 'config:change'
   | 'error'
 
 // System event

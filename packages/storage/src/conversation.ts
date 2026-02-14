@@ -20,6 +20,10 @@ interface MessageRow {
   content: string
   timestamp: string
   metadata: string | null
+  compacted_at: string | null
+  is_summary: number
+  token_count: number | null
+  is_pinned: number
 }
 
 export interface SearchResult {
@@ -41,10 +45,12 @@ export class ConversationStore {
     const now = new Date().toISOString()
     const conversationTitle = title ?? `Conversation ${new Date().toLocaleDateString()}`
 
-    db.run(
-      'INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)',
-      [id, conversationTitle, now, now]
-    )
+    db.run('INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)', [
+      id,
+      conversationTitle,
+      now,
+      now,
+    ])
 
     logger.debug('Created conversation', { conversationId: id, title: conversationTitle })
 
@@ -63,10 +69,9 @@ export class ConversationStore {
   getConversation(conversationId: string): Conversation | undefined {
     const db = getDatabase()
 
-    const row = db.queryOne<ConversationRow>(
-      'SELECT * FROM conversations WHERE id = ?',
-      [conversationId]
-    )
+    const row = db.queryOne<ConversationRow>('SELECT * FROM conversations WHERE id = ?', [
+      conversationId,
+    ])
 
     if (!row) {
       return undefined
@@ -110,10 +115,11 @@ export class ConversationStore {
     const db = getDatabase()
     const now = new Date().toISOString()
 
-    db.run(
-      'UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?',
-      [title, now, conversationId]
-    )
+    db.run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?', [
+      title,
+      now,
+      conversationId,
+    ])
   }
 
   /**
@@ -145,7 +151,9 @@ export class ConversationStore {
   ): Message
   addMessage(
     conversationId: string,
-    roleOrMessage: MessageRole | { role: MessageRole; content: string; metadata?: Record<string, unknown> },
+    roleOrMessage:
+      | MessageRole
+      | { role: MessageRole; content: string; metadata?: Record<string, unknown> },
     content?: string,
     metadata?: Record<string, unknown>
   ): Message {
@@ -171,7 +179,14 @@ export class ConversationStore {
     db.transaction(() => {
       db.run(
         'INSERT INTO messages (id, conversation_id, role, content, timestamp, metadata) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, conversationId, role, messageContent, now, messageMetadata ? JSON.stringify(messageMetadata) : null]
+        [
+          id,
+          conversationId,
+          role,
+          messageContent,
+          now,
+          messageMetadata ? JSON.stringify(messageMetadata) : null,
+        ]
       )
 
       db.run('UPDATE conversations SET updated_at = ? WHERE id = ?', [now, conversationId])
@@ -190,14 +205,30 @@ export class ConversationStore {
 
   /**
    * Get all messages for a conversation
+   * 从最新消息向前加载，遇到 is_summary=1 的消息停止加载更早消息
    */
   getMessages(conversationId: string): readonly Message[] {
     const db = getDatabase()
 
-    const rows = db.query<MessageRow>(
-      'SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC',
+    // 先查找最近的摘要消息
+    const summaryRow = db.queryOne<MessageRow>(
+      'SELECT * FROM messages WHERE conversation_id = ? AND is_summary = 1 ORDER BY timestamp DESC LIMIT 1',
       [conversationId]
     )
+
+    let rows: MessageRow[]
+    if (summaryRow) {
+      // 加载摘要消息及其之后的所有消息
+      rows = db.query<MessageRow>(
+        'SELECT * FROM messages WHERE conversation_id = ? AND timestamp >= ? ORDER BY timestamp ASC',
+        [conversationId, summaryRow.timestamp]
+      )
+    } else {
+      rows = db.query<MessageRow>(
+        'SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC',
+        [conversationId]
+      )
+    }
 
     return rows.map((row) => ({
       id: row.id,
@@ -205,11 +236,16 @@ export class ConversationStore {
       content: row.content,
       timestamp: new Date(row.timestamp),
       metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : undefined,
+      compactedAt: row.compacted_at ? new Date(row.compacted_at) : undefined,
+      isSummary: row.is_summary === 1,
+      tokenCount: row.token_count ?? undefined,
+      isPinned: row.is_pinned === 1,
     }))
   }
 
   /**
    * Get recent messages for a conversation (for context window)
+   * 同样尊重 is_summary 边界
    */
   getRecentMessages(conversationId: string, limit: number): readonly Message[] {
     const db = getDatabase()
@@ -219,13 +255,85 @@ export class ConversationStore {
       [conversationId, limit]
     )
 
-    // Reverse to get chronological order
-    return rows.reverse().map((row) => ({
+    // 检查是否包含摘要消息，如果有则截断到摘要
+    const reversed = rows.reverse()
+    const summaryIndex = reversed.findIndex((r) => r.is_summary === 1)
+
+    const effective = summaryIndex >= 0 ? reversed.slice(summaryIndex) : reversed
+
+    return effective.map((row) => ({
       id: row.id,
       role: row.role as MessageRole,
       content: row.content,
       timestamp: new Date(row.timestamp),
       metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : undefined,
+      compactedAt: row.compacted_at ? new Date(row.compacted_at) : undefined,
+      isSummary: row.is_summary === 1,
+      tokenCount: row.token_count ?? undefined,
+      isPinned: row.is_pinned === 1,
+    }))
+  }
+
+  /**
+   * 标记消息为已压缩（被摘要替代）
+   */
+  markCompacted(messageIds: readonly string[]): void {
+    if (messageIds.length === 0) return
+    const db = getDatabase()
+    const now = new Date().toISOString()
+    const placeholders = messageIds.map(() => '?').join(',')
+    db.run(`UPDATE messages SET compacted_at = ? WHERE id IN (${placeholders})`, [
+      now,
+      ...messageIds,
+    ])
+  }
+
+  /**
+   * 添加摘要消息到对话
+   */
+  addSummaryMessage(conversationId: string, content: string): Message {
+    const db = getDatabase()
+    const id = crypto.randomUUID()
+    const now = new Date().toISOString()
+
+    db.run(
+      'INSERT INTO messages (id, conversation_id, role, content, timestamp, is_summary) VALUES (?, ?, ?, ?, ?, 1)',
+      [id, conversationId, 'system', content, now]
+    )
+
+    return {
+      id,
+      role: 'system' as MessageRole,
+      content,
+      timestamp: new Date(now),
+    }
+  }
+
+  /**
+   * 获取带 token 信息的消息（供优化器使用）
+   */
+  getMessagesForOptimizer(conversationId: string): readonly {
+    id: string
+    role: string
+    content: string
+    timestamp: Date
+    isSummary: boolean
+    tokenCount: number | null
+  }[] {
+    const db = getDatabase()
+
+    const rows = db.query<MessageRow>(
+      'SELECT * FROM messages WHERE conversation_id = ? AND compacted_at IS NULL ORDER BY timestamp ASC',
+      [conversationId]
+    )
+
+    return rows.map((row) => ({
+      id: row.id,
+      role: row.role,
+      content: row.content,
+      timestamp: new Date(row.timestamp),
+      isSummary: row.is_summary === 1,
+      tokenCount: row.token_count,
     }))
   }
 
@@ -316,6 +424,76 @@ export class ConversationStore {
       [conversationId]
     )
     return result?.count ?? 0
+  }
+
+  /**
+   * Pin a message (mark as important)
+   */
+  pinMessage(messageId: string, conversationId: string): void {
+    const db = getDatabase()
+    db.run('UPDATE messages SET is_pinned = 1 WHERE id = ? AND conversation_id = ?', [
+      messageId,
+      conversationId,
+    ])
+    logger.debug('Pinned message', { messageId, conversationId })
+  }
+
+  /**
+   * Unpin a message
+   */
+  unpinMessage(messageId: string, conversationId: string): void {
+    const db = getDatabase()
+    db.run('UPDATE messages SET is_pinned = 0 WHERE id = ? AND conversation_id = ?', [
+      messageId,
+      conversationId,
+    ])
+    logger.debug('Unpinned message', { messageId, conversationId })
+  }
+
+  /**
+   * Check if a message is pinned
+   */
+  isPinned(messageId: string, conversationId: string): boolean {
+    const db = getDatabase()
+    const result = db.queryOne<{ is_pinned: number }>(
+      'SELECT is_pinned FROM messages WHERE id = ? AND conversation_id = ?',
+      [messageId, conversationId]
+    )
+    return result?.is_pinned === 1
+  }
+
+  /**
+   * Get pinned messages for a conversation
+   */
+  getPinnedMessages(conversationId: string): readonly Message[] {
+    const db = getDatabase()
+    const rows = db.query<{
+      id: string
+      conversation_id: string
+      role: MessageRole
+      content: string
+      timestamp: string
+      metadata: string | null
+      compacted_at: string | null
+      is_summary: number
+      token_count: number | null
+      is_pinned: number
+    }>(
+      'SELECT * FROM messages WHERE conversation_id = ? AND is_pinned = 1 ORDER BY timestamp ASC',
+      [conversationId]
+    )
+    return rows.map((row) => ({
+      id: row.id,
+      conversationId: row.conversation_id,
+      role: row.role,
+      content: row.content,
+      timestamp: new Date(row.timestamp),
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      compactedAt: row.compacted_at ? new Date(row.compacted_at) : undefined,
+      isSummary: row.is_summary === 1,
+      tokenCount: row.token_count ?? undefined,
+      isPinned: row.is_pinned === 1,
+    }))
   }
 }
 

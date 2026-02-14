@@ -74,6 +74,16 @@ Write-Host "链接 CLI..."
 Set-Location packages\cli
 pnpm link --global
 
+# 添加 pnpm global bin 到 PATH
+$pnpmBin = (pnpm bin -g 2>$null)
+if ($pnpmBin) {
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if ($currentPath -notlike "*$pnpmBin*") {
+        [Environment]::SetEnvironmentVariable("Path", "$currentPath;$pnpmBin", "User")
+        Write-Host "✓ 已添加到 PATH: $pnpmBin" -ForegroundColor Green
+    }
+}
+
 Set-Location $env:USERPROFILE
 
 # 下载 GUI（可选）

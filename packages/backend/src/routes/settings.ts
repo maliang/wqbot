@@ -7,10 +7,11 @@ import {
   saveApiConfig,
   isApiConfigured,
   getAvailableProviders,
-  setDefaultModel
+  getThemeManager,
 } from '@wqbot/core'
-import type { Locale, ApiConfig } from '@wqbot/core'
-import type { ApiResponse, Settings } from '../types.js'
+import type { Locale, Theme } from '@wqbot/core'
+import type { Settings } from '@wqbot/storage'
+import type { ApiResponse } from '../types.js'
 
 export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
   const settingsStore = getSettingsStore()
@@ -18,29 +19,34 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
   // 获取所有设置（包括 API 配置）
   fastify.get('/api/settings', async (_request, reply) => {
     const settings = settingsStore.getAll()
-    const apiConfig = await loadApiConfig()
+    const apiConfig = (await loadApiConfig()) as {
+      providers: Record<string, Record<string, unknown>>
+      defaultProvider: string
+      defaultModel: string
+    }
     const configured = await isApiConfigured()
     const providers = await getAvailableProviders()
 
     // 将 API 配置转换为扁平格式供前端使用
+    const p = apiConfig.providers
     const response: ApiResponse<Record<string, unknown>> = {
       success: true,
       data: {
         ...settings,
         // API 配置
-        openaiApiKey: apiConfig.openai?.apiKey || '',
-        anthropicApiKey: apiConfig.anthropic?.apiKey || '',
-        deepseekApiKey: apiConfig.deepseek?.apiKey || '',
-        googleApiKey: apiConfig.google?.apiKey || '',
-        groqApiKey: apiConfig.groq?.apiKey || '',
-        ollamaHost: apiConfig.ollama?.host || '',
+        openaiApiKey: (p.openai?.apiKey as string) || '',
+        anthropicApiKey: (p.anthropic?.apiKey as string) || '',
+        deepseekApiKey: (p.deepseek?.apiKey as string) || '',
+        googleApiKey: (p.google?.apiKey as string) || '',
+        groqApiKey: (p.groq?.apiKey as string) || '',
+        ollamaHost: (p.ollama?.host as string) || '',
         // 默认模型
         defaultProvider: apiConfig.defaultProvider || '',
         defaultModel: apiConfig.defaultModel || '',
         // 状态
         isConfigured: configured,
-        availableProviders: providers
-      }
+        availableProviders: providers,
+      },
     }
     return reply.send(response)
   })
@@ -61,8 +67,7 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
     try {
       const updates = request.body
 
-      // 处理 API 配置更新
-      const apiConfigUpdates: Partial<ApiConfig> = {}
+      // API 配置相关字段
       const apiKeys = [
         'openaiApiKey',
         'anthropicApiKey',
@@ -71,62 +76,52 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
         'groqApiKey',
         'ollamaHost',
         'defaultProvider',
-        'defaultModel'
+        'defaultModel',
       ]
 
       // 加载现有配置
-      const currentConfig = await loadApiConfig()
+      const currentConfig = (await loadApiConfig()) as Record<string, Record<string, unknown>> & {
+        defaultProvider?: string
+        defaultModel?: string
+      }
 
       // 更新 API 配置
+      const updatedConfig: Record<string, unknown> = { ...currentConfig }
+      const p = (updatedConfig.providers as Record<string, Record<string, unknown>>) || {}
+
       if (updates.openaiApiKey !== undefined) {
-        apiConfigUpdates.openai = {
-          ...currentConfig.openai,
-          apiKey: updates.openaiApiKey
-        }
+        p.openai = { ...p.openai, apiKey: updates.openaiApiKey }
       }
       if (updates.anthropicApiKey !== undefined) {
-        apiConfigUpdates.anthropic = {
-          ...currentConfig.anthropic,
-          apiKey: updates.anthropicApiKey
-        }
+        p.anthropic = { ...p.anthropic, apiKey: updates.anthropicApiKey }
       }
       if (updates.deepseekApiKey !== undefined) {
-        apiConfigUpdates.deepseek = {
-          ...currentConfig.deepseek,
-          apiKey: updates.deepseekApiKey
-        }
+        p.deepseek = { ...p.deepseek, apiKey: updates.deepseekApiKey }
       }
       if (updates.googleApiKey !== undefined) {
-        apiConfigUpdates.google = {
-          ...currentConfig.google,
-          apiKey: updates.googleApiKey
-        }
+        p.google = { ...p.google, apiKey: updates.googleApiKey }
       }
       if (updates.groqApiKey !== undefined) {
-        apiConfigUpdates.groq = {
-          ...currentConfig.groq,
-          apiKey: updates.groqApiKey
-        }
+        p.groq = { ...p.groq, apiKey: updates.groqApiKey }
       }
       if (updates.ollamaHost !== undefined) {
-        apiConfigUpdates.ollama = {
-          ...currentConfig.ollama,
-          host: updates.ollamaHost
-        }
+        p.ollama = { ...p.ollama, host: updates.ollamaHost }
       }
       if (updates.defaultProvider !== undefined) {
-        apiConfigUpdates.defaultProvider = updates.defaultProvider
+        updatedConfig.defaultProvider = updates.defaultProvider
       }
       if (updates.defaultModel !== undefined) {
-        apiConfigUpdates.defaultModel = updates.defaultModel
+        updatedConfig.defaultModel = updates.defaultModel
       }
 
+      // 检查是否有 API 配置更新
+      const hasApiUpdates = apiKeys.some(
+        (key) => updates[key as keyof typeof updates] !== undefined
+      )
+
       // 保存 API 配置
-      if (Object.keys(apiConfigUpdates).length > 0) {
-        await saveApiConfig({
-          ...currentConfig,
-          ...apiConfigUpdates
-        })
+      if (hasApiUpdates) {
+        await saveApiConfig(updatedConfig as Parameters<typeof saveApiConfig>[0])
       }
 
       // 处理其他设置
@@ -136,14 +131,12 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
         }
       }
 
-      const response: ApiResponse = {
-        success: true
-      }
+      const response: ApiResponse = { success: true }
       return reply.send(response)
     } catch (error) {
       const response: ApiResponse = {
         success: false,
-        error: error instanceof Error ? error.message : '更新失败'
+        error: error instanceof Error ? error.message : '更新失败',
       }
       return reply.status(500).send(response)
     }
@@ -154,13 +147,9 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
     Params: { key: string }
   }>('/api/settings/:key', async (request, reply) => {
     const value = settingsStore.get(request.params.key as keyof Settings)
-
     const response: ApiResponse<{ key: string; value: unknown }> = {
       success: true,
-      data: {
-        key: request.params.key,
-        value
-      }
+      data: { key: request.params.key, value },
     }
     return reply.send(response)
   })
@@ -172,15 +161,12 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
   }>('/api/settings/:key', async (request, reply) => {
     try {
       settingsStore.set(request.params.key as keyof Settings, request.body.value as never)
-
-      const response: ApiResponse = {
-        success: true
-      }
+      const response: ApiResponse = { success: true }
       return reply.send(response)
     } catch (error) {
       const response: ApiResponse = {
         success: false,
-        error: error instanceof Error ? error.message : '设置失败'
+        error: error instanceof Error ? error.message : '设置失败',
       }
       return reply.status(500).send(response)
     }
@@ -189,10 +175,9 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
   // 获取当前语言
   fastify.get('/api/settings/language', async (_request, reply) => {
     const locale = getLocale()
-
     const response: ApiResponse<{ language: string }> = {
       success: true,
-      data: { language: locale }
+      data: { language: locale },
     }
     return reply.send(response)
   })
@@ -205,15 +190,12 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
       const { language } = request.body
       setLocale(language as Locale)
       settingsStore.set('language', language)
-
-      const response: ApiResponse = {
-        success: true
-      }
+      const response: ApiResponse = { success: true }
       return reply.send(response)
     } catch (error) {
       const response: ApiResponse = {
         success: false,
-        error: error instanceof Error ? error.message : '设置语言失败'
+        error: error instanceof Error ? error.message : '设置语言失败',
       }
       return reply.status(500).send(response)
     }
@@ -223,17 +205,63 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post('/api/settings/reset', async (_request, reply) => {
     try {
       settingsStore.reset()
-
+      const response: ApiResponse = { success: true }
+      return reply.send(response)
+    } catch (error) {
       const response: ApiResponse = {
-        success: true
+        success: false,
+        error: error instanceof Error ? error.message : '重置失败',
+      }
+      return reply.status(500).send(response)
+    }
+  })
+
+  // ── 主题 API ──────────────────────────────────────────
+
+  const themeManager = getThemeManager()
+
+  // 获取所有主题
+  fastify.get('/api/themes', async (_request, reply) => {
+    const themes = themeManager.listThemes()
+    const current = themeManager.getTheme()
+    const response: ApiResponse<{ themes: readonly Theme[]; current: string }> = {
+      success: true,
+      data: { themes, current: current.name },
+    }
+    return reply.send(response)
+  })
+
+  // 切换主题
+  fastify.put<{
+    Body: { name: string }
+  }>('/api/themes', async (request, reply) => {
+    try {
+      const { name } = request.body
+      themeManager.setTheme(name)
+      settingsStore.set('theme' as keyof Settings, name as never)
+      const theme = themeManager.getTheme()
+      const cssVars = themeManager.toCssVariables(theme)
+      const response: ApiResponse<{ theme: Theme; cssVariables: Record<string, string> }> = {
+        success: true,
+        data: { theme, cssVariables: cssVars },
       }
       return reply.send(response)
     } catch (error) {
       const response: ApiResponse = {
         success: false,
-        error: error instanceof Error ? error.message : '重置失败'
+        error: error instanceof Error ? error.message : '切换主题失败',
       }
-      return reply.status(500).send(response)
+      return reply.status(400).send(response)
     }
+  })
+
+  // 获取当前主题的 CSS 变量
+  fastify.get('/api/themes/css-variables', async (_request, reply) => {
+    const cssVars = themeManager.toCssVariables()
+    const response: ApiResponse<Record<string, string>> = {
+      success: true,
+      data: cssVars,
+    }
+    return reply.send(response)
   })
 }

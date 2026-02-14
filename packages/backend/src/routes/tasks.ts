@@ -91,7 +91,7 @@ export async function tasksRoutes(fastify: FastifyInstance): Promise<void> {
       ...task,
       progress: progress ?? task.progress,
       status: status ?? task.status,
-      error: error ?? task.error,
+      ...(error !== undefined ? { error } : task.error !== undefined ? { error: task.error } : {}),
       updatedAt: new Date()
     }
 

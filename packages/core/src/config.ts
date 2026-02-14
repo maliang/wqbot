@@ -1,143 +1,57 @@
-import { z } from 'zod'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import YAML from 'yaml'
-import type { ModelsConfig, RoutingStrategy, ModelProvider, TaskType } from './types.js'
+import type { RoutingStrategy, ModelProvider, TaskType } from './types.js'
+import {
+  loadConfig,
+  saveConfig,
+  type AppConfig,
+  type KnowledgeConfig,
+  type McpServerConfig,
+} from './api-config.js'
 
-// Configuration schema
-const AppConfigSchema = z.object({
-  dataDir: z.string().optional(),
-  logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  logFile: z.string().optional(),
-  defaultModel: z.string().optional(),
-  routingStrategy: z.enum(['quality', 'balanced', 'economy']).default('balanced'),
-  maxHistoryMessages: z.number().int().positive().default(100),
-  skillsDir: z.string().optional(),
-  sandbox: z
-    .object({
-      enabled: z.boolean().default(true),
-      allowedPaths: z.array(z.string()).default([]),
-      blockedPaths: z.array(z.string()).default([]),
-      blockedCommands: z.array(z.string()).default([]),
-    })
-    .default({}),
-})
-
-export type AppConfig = z.infer<typeof AppConfigSchema>
-
-// Default configuration
-const DEFAULT_CONFIG: AppConfig = {
-  logLevel: 'info',
-  routingStrategy: 'balanced',
-  maxHistoryMessages: 100,
-  sandbox: {
-    enabled: true,
-    allowedPaths: [],
-    blockedPaths: ['.ssh', '.env', 'credentials', '.git/config'],
-    blockedCommands: ['rm -rf /', 'curl | bash', 'wget | bash', 'format', 'mkfs'],
-  },
-}
-
-// Default models configuration
-const DEFAULT_MODELS_CONFIG: ModelsConfig = {
-  providers: {
-    openai: {
-      enabled: true,
-      models: [
-        { id: 'gpt-4o', provider: 'openai', priority: 1, costPer1k: 0.005 },
-        { id: 'gpt-4o-mini', provider: 'openai', priority: 2, costPer1k: 0.00015 },
-      ],
-    },
-    anthropic: {
-      enabled: true,
-      models: [
-        { id: 'claude-sonnet-4-20250514', provider: 'anthropic', priority: 1 },
-        { id: 'claude-haiku-3-5-20241022', provider: 'anthropic', priority: 2 },
-      ],
-    },
-    google: {
-      enabled: false,
-      models: [],
-    },
-    deepseek: {
-      enabled: false,
-      baseUrl: 'https://api.deepseek.com/v1',
-      models: [{ id: 'deepseek-chat', provider: 'deepseek', priority: 1 }],
-    },
-    ollama: {
-      enabled: true,
-      baseUrl: 'http://localhost:11434',
-      models: [
-        { id: 'llama3:8b', provider: 'ollama', priority: 1 },
-        { id: 'qwen2:7b', provider: 'ollama', priority: 2 },
-      ],
-    },
-    groq: {
-      enabled: false,
-      models: [],
-    },
-    custom: {
-      enabled: false,
-      models: [],
-    },
-  },
-  routing: {
-    strategy: 'balanced',
-    fallbackChain: ['openai', 'anthropic', 'ollama'],
-    taskMapping: {
-      simple_qa: ['gpt-4o-mini', 'claude-haiku-3-5-20241022', 'ollama/llama3:8b'],
-      code_generation: ['claude-sonnet-4-20250514', 'deepseek-chat', 'gpt-4o'],
-      complex_reasoning: ['claude-opus-4-20250514', 'gpt-4o', 'o1'],
-      file_operation: ['gpt-4o-mini', 'claude-haiku-3-5-20241022'],
-      shell_command: ['gpt-4o-mini', 'ollama/llama3:8b'],
-      web_operation: ['gpt-4o', 'claude-sonnet-4-20250514'],
-      local_only: ['ollama/llama3:8b', 'ollama/qwen2:7b'],
-    },
-  },
-}
+// 兼容导出
+export { type AppConfig, type KnowledgeConfig, type McpServerConfig }
 
 export class ConfigManager {
-  private config: AppConfig
-  private modelsConfig: ModelsConfig
+  private config: AppConfig | null = null
   private readonly configDir: string
-  private readonly configPath: string
-  private readonly modelsConfigPath: string
 
   constructor() {
     this.configDir = this.getConfigDir()
-    this.configPath = path.join(this.configDir, 'config.yaml')
-    this.modelsConfigPath = path.join(this.configDir, 'models.yaml')
-    this.config = DEFAULT_CONFIG
-    this.modelsConfig = DEFAULT_MODELS_CONFIG
   }
 
   private getConfigDir(): string {
-    const homeDir = os.homedir()
-    return path.join(homeDir, '.wqbot')
+    return path.join(os.homedir(), '.wqbot')
   }
 
   getDataDir(): string {
-    return this.config.dataDir ?? path.join(this.configDir, 'data')
+    return this.config?.dataDir ?? path.join(this.configDir, 'data')
   }
 
   getSkillsDir(): string {
-    return this.config.skillsDir ?? path.join(this.configDir, 'skills')
+    return this.config?.skillsDir ?? path.join(this.configDir, 'skills')
+  }
+
+  getAgentsDir(): string {
+    return path.join(this.configDir, 'agents')
   }
 
   getLogFile(): string | undefined {
-    return this.config.logFile
+    return this.config?.logFile
   }
 
   async initialize(): Promise<void> {
-    await this.ensureConfigDir()
-    await this.loadConfig()
-    await this.loadModelsConfig()
+    await this.ensureDirs()
+    this.config = await loadConfig()
   }
 
-  private async ensureConfigDir(): Promise<void> {
-    const dirs = [this.configDir, this.getDataDir(), this.getSkillsDir()]
+  async reload(): Promise<void> {
+    this.config = await loadConfig()
+  }
 
+  private async ensureDirs(): Promise<void> {
+    const dirs = [this.configDir, this.getDataDir(), this.getSkillsDir(), this.getAgentsDir()]
     for (const dir of dirs) {
       if (!fs.existsSync(dir)) {
         await fs.promises.mkdir(dir, { recursive: true })
@@ -145,110 +59,190 @@ export class ConfigManager {
     }
   }
 
-  private async loadConfig(): Promise<void> {
-    if (fs.existsSync(this.configPath)) {
-      const content = await fs.promises.readFile(this.configPath, 'utf-8')
-      const parsed = YAML.parse(content)
-      const validated = AppConfigSchema.safeParse(parsed)
-
-      if (validated.success) {
-        this.config = { ...DEFAULT_CONFIG, ...validated.data }
-      }
-    } else {
-      await this.saveConfig()
-    }
-  }
-
-  private async loadModelsConfig(): Promise<void> {
-    if (fs.existsSync(this.modelsConfigPath)) {
-      const content = await fs.promises.readFile(this.modelsConfigPath, 'utf-8')
-      const parsed = YAML.parse(content)
-
-      // Expand environment variables in API keys
-      if (parsed?.providers) {
-        for (const provider of Object.values(parsed.providers) as Array<{
-          api_key?: string
-          apiKey?: string
-        }>) {
-          if (provider.api_key) {
-            provider.apiKey = this.expandEnvVar(provider.api_key)
-            delete provider.api_key
-          }
-        }
-      }
-
-      this.modelsConfig = { ...DEFAULT_MODELS_CONFIG, ...parsed }
-    } else {
-      await this.saveModelsConfig()
-    }
-  }
-
-  private expandEnvVar(value: string): string {
-    const envVarPattern = /\$\{([^}]+)\}/g
-    return value.replace(envVarPattern, (_, varName: string) => {
-      return process.env[varName] ?? ''
-    })
-  }
-
-  private async saveConfig(): Promise<void> {
-    const content = YAML.stringify(this.config)
-    await fs.promises.writeFile(this.configPath, content, 'utf-8')
-  }
-
-  private async saveModelsConfig(): Promise<void> {
-    const content = YAML.stringify(this.modelsConfig)
-    await fs.promises.writeFile(this.modelsConfigPath, content, 'utf-8')
-  }
-
-  getConfig(): Readonly<AppConfig> {
-    return this.config
-  }
-
-  getModelsConfig(): Readonly<ModelsConfig> {
-    return this.modelsConfig
+  getConfig(): AppConfig {
+    return this.config!
   }
 
   getRoutingStrategy(): RoutingStrategy {
-    return this.config.routingStrategy
+    return this.config?.routing?.strategy ?? 'balanced'
   }
 
   getModelsForTask(taskType: TaskType): readonly string[] {
-    return this.modelsConfig.routing.taskMapping[taskType] ?? []
+    return this.config?.routing?.taskMapping?.[taskType] ?? []
   }
 
   getFallbackChain(): readonly ModelProvider[] {
-    return this.modelsConfig.routing.fallbackChain
+    return (
+      (this.config?.routing?.fallbackChain as readonly ModelProvider[] | undefined) ?? [
+        'openai',
+        'anthropic',
+        'ollama',
+      ]
+    )
   }
 
   isProviderEnabled(provider: ModelProvider): boolean {
-    return this.modelsConfig.providers[provider]?.enabled ?? false
-  }
-
-  getProviderApiKey(provider: ModelProvider): string | undefined {
-    const providerConfig = this.modelsConfig.providers[provider]
-    if (!providerConfig?.apiKey) {
-      // Try environment variable fallback
-      const envVarName = `${provider.toUpperCase()}_API_KEY`
-      return process.env[envVarName]
+    const p = this.config?.providers
+    if (!p) return false
+    const providerConfig = p[provider as keyof typeof p]
+    if (providerConfig && typeof providerConfig === 'object' && 'enabled' in providerConfig) {
+      return (providerConfig as { enabled?: boolean }).enabled ?? false
     }
-    return providerConfig.apiKey
+    return false
   }
 
-  getProviderBaseUrl(provider: ModelProvider): string | undefined {
-    return this.modelsConfig.providers[provider]?.baseUrl
+  getProviderApiKey(provider: ModelProvider, customName?: string): string | undefined {
+    const p = this.config?.providers
+    if (!p) return undefined
+
+    // 如果指定了 customName，使用 customName 作为 key 查找
+    if (customName) {
+      const customProvider = p[customName]
+      if (customProvider && typeof customProvider === 'object' && 'apiKey' in customProvider) {
+        return (customProvider as { apiKey?: string }).apiKey
+      }
+      return undefined
+    }
+
+    const providerConfig = p[provider as keyof typeof p]
+    if (providerConfig && typeof providerConfig === 'object' && 'apiKey' in providerConfig) {
+      return (providerConfig as { apiKey?: string }).apiKey
+    }
+    return process.env[`${provider.toUpperCase()}_API_KEY`]
+  }
+
+  getProviderBaseUrl(provider: ModelProvider, customName?: string): string | undefined {
+    const p = this.config?.providers
+    if (!p) return undefined
+
+    // 如果指定了 customName，使用 customName 作为 key 查找
+    if (customName) {
+      const customProvider = p[customName]
+      if (customProvider && typeof customProvider === 'object') {
+        if ('baseUrl' in customProvider) return (customProvider as { baseUrl?: string }).baseUrl
+        if ('host' in customProvider) return (customProvider as { host?: string }).host
+      }
+      return undefined
+    }
+
+    const providerConfig = p[provider as keyof typeof p]
+    if (providerConfig && typeof providerConfig === 'object') {
+      if ('baseUrl' in providerConfig) return (providerConfig as { baseUrl?: string }).baseUrl
+      if ('host' in providerConfig) return (providerConfig as { host?: string }).host
+    }
+    return undefined
+  }
+
+  getModels(provider: ModelProvider): readonly string[] {
+    const p = this.config?.providers
+    if (!p) return []
+    const providerConfig = p[provider as keyof typeof p]
+    if (providerConfig && typeof providerConfig === 'object' && 'models' in providerConfig) {
+      const models = (providerConfig as { models?: (string | { id: string; alias: string })[] })
+        .models
+      if (Array.isArray(models)) {
+        return models.map((m) => (typeof m === 'string' ? m : m.id))
+      }
+    }
+    return []
+  }
+
+  getAllModels(): { provider: string; models: string[] }[] {
+    const result: { provider: string; models: string[] }[] = []
+    const providers = this.config?.providers
+    if (!providers) return result
+
+    for (const [name, config] of Object.entries(providers)) {
+      if (config && typeof config === 'object' && 'models' in config) {
+        const models = (
+          (config as { models?: (string | { id: string; alias: string })[] }).models ?? []
+        ).map((m) => (typeof m === 'string' ? m : m.id))
+        if (models.length > 0) {
+          result.push({ provider: name, models })
+        }
+      }
+    }
+    return result
+  }
+
+  // 获取自定义端点名称列表
+  getCustomEndpointNames(): readonly string[] {
+    const providers = this.config?.providers
+    if (!providers) return []
+    // 返回所有非标准 provider 的名称（custom endpoints）
+    return Object.keys(providers).filter(
+      (k) => !['openai', 'anthropic', 'google', 'deepseek', 'ollama', 'groq'].includes(k)
+    )
+  }
+
+  // 获取自定义端点配置
+  getCustomEndpoint(name: string) {
+    const providers = this.config?.providers
+    if (!providers) return null
+    return providers[name] || null
+  }
+
+  // 解析模型别名
+  resolveAlias(
+    modelId: string
+  ): { modelId: string; provider?: string; customName?: string } | null {
+    const providers = this.config?.providers
+    if (!providers) return null
+
+    // 遍历所有 provider 的模型配置，查找别名
+    for (const [providerName, config] of Object.entries(providers)) {
+      if (config && typeof config === 'object' && 'models' in config) {
+        const models = (config as { models?: (string | { id: string; alias: string })[] }).models
+        if (Array.isArray(models)) {
+          for (const m of models) {
+            if (typeof m === 'object' && m.alias === modelId) {
+              // 如果是自定义 provider（非标准），返回 customName
+              const isCustom = ![
+                'openai',
+                'anthropic',
+                'google',
+                'deepseek',
+                'ollama',
+                'groq',
+              ].includes(providerName)
+              if (isCustom) {
+                return { modelId: m.id, customName: providerName }
+              }
+              return { modelId: m.id, provider: providerName }
+            }
+          }
+        }
+      }
+    }
+    return null
   }
 
   async updateConfig(updates: Partial<AppConfig>): Promise<void> {
-    this.config = { ...this.config, ...updates }
-    await this.saveConfig()
+    this.config = { ...this.config!, ...updates }
+    await saveConfig(this.config)
   }
 
   getSandboxConfig(): AppConfig['sandbox'] {
-    return this.config.sandbox
+    return (
+      this.config?.sandbox ?? {
+        enabled: true,
+        allowedPaths: [],
+        blockedPaths: [],
+        blockedCommands: [],
+      }
+    )
+  }
+
+  getKnowledgeConfig(): KnowledgeConfig | undefined {
+    return this.config?.knowledge
+  }
+
+  getMcpConfig(): Record<string, McpServerConfig> {
+    return this.config?.mcp ?? {}
   }
 }
 
-// Singleton instance
+// Singleton
 let configManagerInstance: ConfigManager | null = null
 
 export function getConfigManager(): ConfigManager {

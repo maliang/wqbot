@@ -2,13 +2,14 @@ import { watch, type FSWatcher } from 'chokidar'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import YAML from 'yaml'
 import { createModuleLogger } from './logger.js'
 import { emit } from './events.js'
 
 const logger = createModuleLogger('config-watcher')
 
 // 配置类型
-export type ConfigType = 'rules' | 'skills' | 'agents'
+export type ConfigType = 'rules' | 'skills' | 'agents' | 'mcp'
 
 // 配置项
 export interface ConfigItem {
@@ -42,6 +43,8 @@ export class ConfigWatcher {
   private configCache: Map<string, ConfigItem> = new Map()
   private projectDir: string
   private disabledConfigs: Set<string> = new Set()
+  private readonly disabledFilePath = path.join(os.homedir(), '.wqbot', '.disabled.json')
+  private previousMcpJson: string = ''
 
   constructor(projectDir?: string) {
     this.projectDir = projectDir ?? process.cwd()
@@ -95,10 +98,32 @@ export class ConfigWatcher {
     return { type, name, scope }
   }
 
+  // 加载禁用状态
+  private async loadDisabledState(): Promise<void> {
+    try {
+      const content = await fs.readFile(this.disabledFilePath, 'utf-8')
+      const list = JSON.parse(content) as string[]
+      for (const key of list) {
+        this.disabledConfigs.add(key)
+      }
+    } catch {
+      // 文件不存在，忽略
+    }
+  }
+
+  // 保存禁用状态
+  private async saveDisabledState(): Promise<void> {
+    const list = [...this.disabledConfigs]
+    await fs.writeFile(this.disabledFilePath, JSON.stringify(list, null, 2), 'utf-8')
+  }
+
   // 启动监听
   async start(): Promise<void> {
     // 确保目录存在
     await this.ensureDirectories()
+
+    // 加载禁用状态（在加载配置之前，以便正确设置 enabled 字段）
+    await this.loadDisabledState()
 
     // 加载初始配置
     await this.loadAllConfigs()
@@ -144,6 +169,19 @@ export class ConfigWatcher {
     } catch {
       // 项目配置目录不存在，跳过
     }
+
+    // 监听 config.yaml（用于 MCP 热加载）
+    const configYamlPath = path.join(GLOBAL_CONFIG_DIR, 'config.yaml')
+    const configYamlWatcher = watch(configYamlPath, {
+      persistent: true,
+      ignoreInitial: true,
+      awaitWriteFinish: {
+        stabilityThreshold: 200,
+        pollInterval: 50
+      }
+    })
+    configYamlWatcher.on('change', () => this.handleConfigYamlChange(configYamlPath))
+    this.watchers.push(configYamlWatcher)
 
     logger.info('配置监听已启动', {
       globalDir: GLOBAL_CONFIG_DIR,
@@ -234,10 +272,41 @@ export class ConfigWatcher {
     }
 
     // 发送系统事件
-    emit('skill:execute', {
-      event: 'config:change',
-      ...event
-    })
+    emit('config:change', { ...event })
+  }
+
+  // 处理 config.yaml 变更（检测 MCP 配置变化）
+  private async handleConfigYamlChange(filePath: string): Promise<void> {
+    try {
+      const content = await fs.readFile(filePath, 'utf-8')
+      const parsed = YAML.parse(content)
+      const mcpJson = JSON.stringify(parsed?.mcp ?? {})
+
+      if (mcpJson === this.previousMcpJson) return
+      this.previousMcpJson = mcpJson
+
+      const event: ConfigChangeEvent = {
+        type: 'mcp',
+        name: 'config',
+        scope: 'global',
+        action: 'updated',
+        path: filePath
+      }
+
+      logger.debug('MCP 配置变更检测到', { filePath })
+
+      for (const callback of this.callbacks) {
+        try {
+          await callback(event)
+        } catch (error) {
+          logger.error('配置变更回调执行失败', error instanceof Error ? error : new Error(String(error)))
+        }
+      }
+
+      emit('config:change', { ...event })
+    } catch (error) {
+      logger.error('解析 config.yaml 失败', error instanceof Error ? error : new Error(String(error)))
+    }
   }
 
   // 加载所有配置
@@ -276,6 +345,16 @@ export class ConfigWatcher {
     }
 
     logger.info('配置加载完成', { count: this.configCache.size })
+
+    // 初始化 MCP 配置快照（用于变更检测）
+    try {
+      const configYamlPath = path.join(GLOBAL_CONFIG_DIR, 'config.yaml')
+      const content = await fs.readFile(configYamlPath, 'utf-8')
+      const parsed = YAML.parse(content)
+      this.previousMcpJson = JSON.stringify(parsed?.mcp ?? {})
+    } catch {
+      // config.yaml 不存在
+    }
   }
 
   // 注册变更回调
@@ -350,6 +429,10 @@ export class ConfigWatcher {
     if (item) {
       this.configCache.set(key, { ...item, enabled: true })
     }
+
+    this.saveDisabledState().catch(err => {
+      logger.error('保存禁用状态失败', err instanceof Error ? err : new Error(String(err)))
+    })
   }
 
   // 禁用配置
@@ -361,6 +444,10 @@ export class ConfigWatcher {
     if (item) {
       this.configCache.set(key, { ...item, enabled: false })
     }
+
+    this.saveDisabledState().catch(err => {
+      logger.error('保存禁用状态失败', err instanceof Error ? err : new Error(String(err)))
+    })
   }
 
   // 检查配置是否启用

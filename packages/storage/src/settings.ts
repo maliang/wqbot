@@ -5,15 +5,11 @@ import { createModuleLogger } from '@wqbot/core'
 const logger = createModuleLogger('settings-store')
 
 // Settings schema for validation
+// 注意：API 相关配置（defaultModel, routingStrategy）已移至 config.yaml
 const SettingsSchema = z.object({
   // User preferences
   theme: z.enum(['light', 'dark', 'system']).optional(),
   language: z.string().optional(),
-
-  // Model preferences
-  defaultModel: z.string().optional(),
-  routingStrategy: z.enum(['quality', 'balanced', 'economy']).optional(),
-  localOnly: z.boolean().optional(),
 
   // UI preferences
   showTimestamps: z.boolean().optional(),

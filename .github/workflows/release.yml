@@ -217,3 +217,97 @@ jobs:
             packages/gui-tauri/src-tauri/target/release/bundle/**/*.deb
             packages/gui-tauri/src-tauri/target/release/bundle/**/*.sig
           if-no-files-found: ignore
+
+  # ============================================================
+  # 阶段 C: 多渠道分发（Homebrew / Scoop）
+  # ============================================================
+  distribute:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-tauri
+    runs-on: ubuntu-latest
+    name: Distribute (Homebrew + Scoop)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download release assets and compute SHA256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          mkdir -p /tmp/assets
+
+          # 下载各平台安装包
+          gh release download "v${VERSION}" -D /tmp/assets || true
+
+          # 计算 SHA256
+          compute_sha() {
+            local pattern="$1"
+            local file=$(ls /tmp/assets/$pattern 2>/dev/null | head -1)
+            if [ -f "$file" ]; then
+              sha256sum "$file" | awk '{print $1}'
+            else
+              echo "TODO"
+            fi
+          }
+
+          echo "SHA256_MAC_ARM=$(compute_sha '*aarch64*.dmg')" >> $GITHUB_ENV
+          echo "SHA256_MAC_X64=$(compute_sha '*x64*.dmg')" >> $GITHUB_ENV
+          echo "SHA256_LINUX=$(compute_sha '*amd64*.deb')" >> $GITHUB_ENV
+          echo "SHA256_WIN_X64=$(compute_sha '*x64-setup.exe')" >> $GITHUB_ENV
+
+      - name: Generate Homebrew Formula
+        run: |
+          node scripts/generate-homebrew.js \
+            "${{ steps.version.outputs.VERSION }}" \
+            "$SHA256_MAC_ARM" \
+            "$SHA256_MAC_X64" \
+            "$SHA256_LINUX"
+
+      - name: Generate Scoop manifest
+        run: |
+          node scripts/generate-scoop.js \
+            "${{ steps.version.outputs.VERSION }}" \
+            "$SHA256_WIN_X64"
+
+      - name: Push Homebrew Formula to tap
+        if: env.SHA256_MAC_ARM != 'TODO'
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "HOMEBREW_TAP_TOKEN 未配置，跳过 Homebrew 推送"
+            exit 0
+          fi
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/user/homebrew-tap.git" /tmp/tap
+          cp dist/homebrew/wqbot.rb /tmp/tap/Formula/wqbot.rb
+          cd /tmp/tap
+          git add Formula/wqbot.rb
+          git commit -m "Update wqbot to ${{ steps.version.outputs.VERSION }}" || true
+          git push
+
+      - name: Push Scoop manifest to bucket
+        if: env.SHA256_WIN_X64 != 'TODO'
+        env:
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+        run: |
+          if [ -z "$SCOOP_BUCKET_TOKEN" ]; then
+            echo "SCOOP_BUCKET_TOKEN 未配置，跳过 Scoop 推送"
+            exit 0
+          fi
+          git clone "https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/user/scoop-bucket.git" /tmp/bucket
+          cp dist/scoop/wqbot.json /tmp/bucket/bucket/wqbot.json
+          cd /tmp/bucket
+          git add bucket/wqbot.json
+          git commit -m "Update wqbot to ${{ steps.version.outputs.VERSION }}" || true
+          git push

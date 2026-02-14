@@ -17,7 +17,12 @@
       },
       "shell": {
         "all": false,
-        "open": true
+        "open": true,
+        "sidecar": true,
+        "scope": [
+          { "name": "binaries/wqbot-backend", "sidecar": true, "args": true },
+          { "name": "binaries/wqbot-cli", "sidecar": true, "args": true }
+        ]
       },
       "window": {
         "all": true
@@ -42,14 +47,11 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "resources": [
-        "../../../packages/cli/dist/**/*",
-        "../../../packages/backend/dist/**/*",
-        "../../../packages/core/dist/**/*",
-        "../../../packages/storage/dist/**/*",
-        "../../../packages/models/dist/**/*",
-        "../../../packages/skills/dist/**/*"
+      "externalBin": [
+        "binaries/wqbot-backend",
+        "binaries/wqbot-cli"
       ],
+      "resources": [],
       "shortDescription": "智能 AI 管家",
       "longDescription": "WQBot 是一个跨平台的智能 AI 助手，支持多模型路由、动态技能系统和 Token 优化对话管理。",
       "category": "Utility",
@@ -85,7 +87,7 @@
         "https://github.com/user/wqbot/releases/latest/download/latest.json"
       ],
       "dialog": true,
-      "pubkey": "UPDATER_PUBKEY_PLACEHOLDER",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYwMkYwODFEODBFNDEyRTAKUldUZ0V1U0FIUWd2WU5RbTE4bnlPUk1pRk02L1h4Ui9oSXZGNUJFbDBHT051MzlVazJwOWcyQ2MK",
       "windows": {
         "installMode": "passive"
       }
