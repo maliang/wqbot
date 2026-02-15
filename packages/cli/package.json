@@ -11,6 +11,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "dev:run": "tsup && node dist/index.js",
+    "dev:tsx": "tsx src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist"

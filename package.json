@@ -18,6 +18,7 @@
     "build:installer:linux": "node scripts/build-installer.js linux",
     "dev": "pnpm -r --parallel dev",
     "dev:cli": "pnpm --filter @wqbot/cli dev",
+    "dev:cli:run": "pnpm --filter @wqbot/cli dev:run",
     "dev:backend": "pnpm --filter @wqbot/backend dev",
     "dev:gui": "pnpm --filter @wqbot/gui-tauri tauri:dev",
     "start": "pnpm --filter @wqbot/cli start",
