@@ -315,3 +315,71 @@ export {
   type LoopStatus,
   LOOP_TEMPLATES,
 } from './self-loop/index.js'
+
+// Channels (Multi-platform messaging)
+export {
+  ChannelManager,
+  getChannelManager,
+  createChannelManager,
+  type ChannelConfig,
+  type ChannelPlatform,
+  type ChannelCredentials,
+  type ChannelSettings,
+  type InboundMessage,
+  type OutboundMessage,
+  type MessageAttachment,
+  type ChannelEvent,
+  type ChannelEventType,
+  type ChannelAdapter,
+  type ChannelUser,
+  TelegramAdapter,
+  SlackAdapter,
+  WhatsAppAdapter,
+  DiscordAdapter,
+  WebhookAdapter,
+} from './channels/index.js'
+
+// Browser Automation
+export {
+  BrowserManager,
+  getBrowserManager,
+  createBrowserManager,
+  SemanticSnapshot,
+  type BrowserConfig,
+  type ViewportConfig,
+  type ProxyConfig,
+  type NavigateOptions,
+  type ClickOptions,
+  type FillOptions,
+  type ScreenshotOptions,
+  type EvaluationOptions,
+  type BrowserPage,
+  type BrowserContext,
+  type ElementInfo,
+  type BoundingBox,
+  type ConsoleMessage,
+  type NetworkRequest,
+  type BrowserEvent,
+  type BrowserEventType,
+  type SemanticSnapshot as SemanticSnapshotResult,
+  type InteractiveElement,
+  type FormInfo,
+  type FormField,
+  type NavigationInfo,
+} from './browser/index.js'
+
+// Shell Executor
+export {
+  ShellExecutor,
+  getShellExecutor,
+  createSandboxExecutor,
+  createTrustedExecutor,
+  createReadonlyExecutor,
+  type ShellConfig,
+  type ShellMode,
+  type ShellCommand,
+  type ShellResult,
+  type ShellStreamResult,
+  type BlockedCommand,
+  type TrustConfig,
+} from './shell/index.js'

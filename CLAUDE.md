@@ -389,6 +389,121 @@ controller.on('iteration:completed', (event) => {
 | thorough | 深度全面分析 |
 | ralphex | Ralph-Ex 风格自改进 |
 
+### 多渠道消息接入
+
+支持 Telegram、Slack、WhatsApp、Discord 等消息平台：
+
+```typescript
+import { getChannelManager } from '@wqbot/core'
+
+const manager = getChannelManager()
+
+// Telegram
+await manager.registerChannel({
+  enabled: true,
+  platform: 'telegram',
+  credentials: { telegramBotToken: process.env.TELEGRAM_TOKEN }
+})
+
+// Slack
+await manager.registerChannel({
+  enabled: true,
+  platform: 'slack',
+  credentials: { 
+    slackBotToken: process.env.SLACK_TOKEN,
+    slackSigningSecret: process.env.SLACK_SECRET
+  }
+})
+
+// WhatsApp
+await manager.registerChannel({
+  enabled: true,
+  platform: 'whatsapp',
+  credentials: {
+    whatsappPhoneNumberId: process.env.WA_PHONE_ID,
+    whatsappAccessToken: process.env.WA_TOKEN
+  }
+})
+
+// 监听消息
+manager.onMessage((event) => {
+  console.log(`[${event.platform}] ${event.message?.content}`)
+})
+
+// 发送消息
+await manager.sendMessage('telegram', {
+  chatId: '123456',
+  content: 'Hello from WQBot!'
+})
+```
+
+### 浏览器自动化
+
+Playwright 集成，支持网页抓取和自动化：
+
+```typescript
+import { getBrowserManager, SemanticSnapshot } from '@wqbot/core'
+
+const browser = getBrowserManager({ headless: true })
+
+await browser.launch()
+const contextId = await browser.createContext()
+const pageId = await browser.createPage(contextId)
+
+// 导航
+await browser.navigate(pageId, 'https://example.com', {
+  waitUntil: 'networkidle'
+})
+
+// 操作
+await browser.fill(pageId, '#search-input', 'query')
+await browser.click(pageId, '#search-button')
+
+// 截图
+const screenshot = await browser.screenshot(pageId, { 
+  type: 'png',
+  fullPage: true 
+})
+
+// Semantic Snapshot - 结构化页面信息
+const snapshot = await SemanticSnapshot.capture(pageId, browser)
+// => { interactiveElements, forms, navigation }
+
+await browser.close()
+```
+
+### Shell 执行 (信任模式)
+
+```typescript
+import { createSandboxExecutor, createTrustedExecutor, createReadonlyExecutor } from '@wqbot/core'
+
+// 沙箱模式 (默认)
+const sandbox = createSandboxExecutor()
+const result = await sandbox.execute('ls -la') // 安全检查
+
+// 信任模式 (开发/自动化)
+const trusted = createTrustedExecutor({
+  allowedCommands: ['npm', 'git', 'pnpm'],
+  allowedPaths: ['/home/user/project'],
+  requireApproval: true
+})
+
+// 执行真实命令
+const build = await trusted.execute('npm run build')
+
+// 只读模式 (分析)
+const readonly = createReadonlyExecutor()
+const files = await readonly.execute('grep -r "TODO" src/')
+```
+
+**安全模式对比**:
+
+| 模式 | 功能 | 适用场景 |
+|------|------|---------|
+| sandbox | 严格安全检查，阻止危险命令 | 生产环境 |
+| trust | 白名单命令，可配置路径 | 开发/自动化 |
+| readonly | 仅 cat/grep/ls 等查询 | 代码分析 |
+
 ## 配置系统
 
 ### 目录结构

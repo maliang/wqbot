@@ -364,6 +364,89 @@ const session = await controller.startLoop({ task: "优化代码" }, {
 
 循环阶段：分析 → 计划 → 执行 → 验证 → 改进 → 完成
 
+### 多渠道消息接入
+
+通过 Telegram、Slack、WhatsApp、Discord 控制 AI 助手：
+
+```typescript
+import { getChannelManager } from '@wqbot/core'
+
+const manager = getChannelManager()
+
+// 配置 Telegram
+await manager.registerChannel({
+  enabled: true,
+  platform: 'telegram',
+  credentials: { telegramBotToken: 'xxx' }
+})
+
+// 配置 Slack
+await manager.registerChannel({
+  enabled: true,
+  platform: 'slack',
+  credentials: { slackBotToken: 'xxx' }
+})
+
+// 监听消息
+manager.onMessage((event) => {
+  if (event.message) {
+    // 处理消息
+    console.log(event.message.content)
+  }
+})
+```
+
+### 浏览器自动化
+
+Playwright 集成，支持网页抓取和自动化操作：
+
+```typescript
+import { getBrowserManager, SemanticSnapshot } from '@wqbot/core'
+
+const browser = getBrowserManager()
+await browser.launch()
+
+const contextId = await browser.createContext()
+const pageId = await browser.createPage(contextId)
+
+await browser.navigate(pageId, 'https://example.com')
+const content = await browser.getContent(pageId)
+
+// Semantic Snapshot (OpenCLAW 风格)
+const snapshot = await SemanticSnapshot.capture(pageId, browser)
+console.log(snapshot.interactiveElements)
+```
+
+### Shell 执行 (信任模式)
+
+绕过沙箱限制，执行真实终端命令：
+
+```typescript
+import { createTrustedExecutor } from '@wqbot/core'
+
+// 创建信任模式执行器
+const shell = createTrustedExecutor({
+  allowedPaths: ['/home/user/projects/*'],
+  requireApproval: false
+})
+
+// 执行命令
+const result = await shell.execute('npm run build')
+console.log(result.stdout)
+
+// 流式输出
+shell.executeStream('npm run dev', (event) => {
+  console.log(event.data)
+})
+```
+
+**三种模式**:
+| 模式 | 说明 |
+|------|------|
+| sandbox | 严格安全限制 (默认) |
+| trust | 信任模式，允许真实命令执行 |
+| readonly | 只读模式，仅允许 cat/grep 等查询命令 |
+
 ---
 
 ## 配置系统

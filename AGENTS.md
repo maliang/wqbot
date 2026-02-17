@@ -357,5 +357,8 @@ AI: [使用 architect 代理]
 | Unattended | 无人值守模式和后台任务               | 定时/队列触发         | config.yaml | `unattended/`       |
 | Agents Team | 多代理团队协作                       | 手动/自动             | -           | `agents-team/`      |
 | Self-Loop  | 自引用循环和自我改进                 | 手动/自动             | -           | `self-loop/`        |
+| Channels   | 多渠道消息接入 (Telegram/Slack/WhatsApp) | 消息触发          | config.yaml | `channels/`         |
+| Browser    | 浏览器自动化 (Playwright)             | 手动/自动             | -           | `browser/`          |
+| Shell      | Shell 执行 (信任模式)                | 手动/自动             | config.yaml | `shell/`           |
 
 > 注：Agents、Skills、MCP、Knowledge 注册的工具最终都汇聚到 `ToolRegistry`（来源标记为 `builtin`/`skill`/`mcp`），由 `tool-adapter.ts` 转换为 AI SDK 格式供模型调用。这是内部实现细节，用户无需直接配置。
