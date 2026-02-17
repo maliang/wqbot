@@ -12,3 +12,12 @@ export {
   initializePermissionManager,
 } from './permissions.js'
 export { AuditLog, getAuditLog, initializeAuditLog, type AuditEntry } from './audit-log.js'
+export {
+  InputSanitizer,
+  getInputSanitizer,
+  initializeInputSanitizer,
+  sanitizeInput,
+  checkInputSafety,
+  type SanitizationResult,
+  type SanitizerOptions,
+} from './input-sanitizer.js'

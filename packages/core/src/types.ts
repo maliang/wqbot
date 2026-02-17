@@ -124,6 +124,24 @@ export const PermissionSchema = z.enum([
 
 export type Permission = z.infer<typeof PermissionSchema>
 
+// Permission modes (Claude Code style: allow/ask/deny)
+export type PermissionMode = 'allow' | 'ask' | 'deny'
+
+// Tool-level permission rule
+export interface ToolPermissionRule {
+  readonly tool: string
+  readonly mode: PermissionMode
+  readonly conditions?: Record<string, unknown>
+}
+
+// Permission check result
+export interface PermissionCheckResult {
+  readonly allowed: boolean
+  readonly mode: PermissionMode
+  readonly reason?: string
+  readonly shouldAsk: boolean
+}
+
 // Skill trigger configuration
 export interface SkillTrigger {
   readonly patterns: readonly string[]
@@ -169,15 +187,26 @@ export interface SkillOutput<T = unknown> {
 
 // Event types for the system
 export type EventType =
+  // Conversation events
   | 'conversation:start'
   | 'conversation:end'
   | 'message:received'
   | 'message:sent'
+  // Skill/Tool events
   | 'skill:execute'
   | 'skill:complete'
+  | 'tool:before' // PreToolUse hook
+  | 'tool:after' // PostToolUse hook
+  // Model events
   | 'model:request'
   | 'model:response'
+  // Session events
+  | 'session:start' // SessionStart hook
+  | 'session:stop' // Stop hook
+  | 'prompt:submit' // UserPromptSubmit hook
+  // Config events
   | 'config:change'
+  // Error events
   | 'error'
 
 // System event

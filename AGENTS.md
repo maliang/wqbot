@@ -139,6 +139,45 @@ AI: [使用 planner 代理分析需求，制定实现计划]
 
 ---
 
+## 预设代理
+
+WQBot 内置 5 个预设代理，存放在 `packages/skills/agents/`：
+
+| 代理 | 文件 | 用途 |
+|------|------|------|
+| build | build.md | 代码实现和构建 |
+| plan | plan.md | 任务规划和分析 |
+| review | review.md | 代码审查和质量检查 |
+| explore | explore.md | 代码探索和搜索 |
+| general | general.md | 通用对话和问答 |
+
+预设代理可通过 `@代理名` 触发，也可被项目级代理覆盖。
+
+---
+
+## 预设技能和规则
+
+### 预设技能 (4个)
+
+| 技能 | 文件 | 用途 |
+|------|------|------|
+| commit | commit.md | 智能 Git 提交 |
+| pr | pr.md | PR 创建和管理 |
+| test | test.md | 测试生成和运行 |
+| lint | lint.md | 代码检查和修复 |
+
+### 预设规则 (3个)
+
+| 规则 | 文件 | 用途 |
+|------|------|------|
+| coding-standards | coding-standards.md | 编码规范 |
+| security-rules | security-rules.md | 安全规范 |
+| git-rules | git-rules.md | Git 工作流 |
+
+规则在每次对话时自动注入到系统提示词中，确保模型遵守项目规范。
+
+---
+
 ## 自定义代理
 
 ### 代理文件格式
@@ -185,6 +224,61 @@ triggers:              # 触发关键词数组
 | hidden      | boolean  | 否   | 是否隐藏（不显示在 UI）     |
 | color       | string   | 否   | UI 显示颜色（如 #FF6B6B）   |
 | triggers    | string[] | 否   | 触发关键词数组，包含匹配    |
+| alias       | string   | 否   | 代理别名，简短引用          |
+| readonly    | boolean  | 否   | 是否只读模式（不接受工具修改） |
+
+### 增强功能
+
+#### 并行执行
+
+复杂任务可指定多个代理并行处理：
+
+```yaml
+---
+name: parallel-analyzer
+mode: parallel
+agents:
+  - code-reviewer
+  - security-reviewer
+---
+```
+
+#### 构建/计划切换
+
+代理支持 build 和 plan 两种模式：
+
+```yaml
+---
+name: implementation-agent
+mode: build    # 执行模式 - 直接修改代码
+# mode: plan   # 计划模式 - 生成方案供确认
+---
+```
+
+#### 只读模式
+
+只读代理用于分析任务，不执行任何修改：
+
+```yaml
+---
+name: analyzer
+readonly: true
+---
+```
+
+#### 代理别名
+
+简短的别名方便快速引用：
+
+```yaml
+---
+name: code-reviewer
+alias: cr
+triggers: ["review", "审查"]
+---
+```
+
+使用：`@cr 分析这段代码`
 
 > 注意：`tools` 字段当前不支持配置，代理默认拥有所有内置工具。
 
@@ -252,10 +346,16 @@ AI: [使用 architect 代理]
 
 | 类型      | 用途                                   | 触发方式              | 配置格式    | 模块                |
 | --------- | -------------------------------------- | --------------------- | ----------- | ------------------- |
-| Agents    | 复杂任务处理，有独立提示词和模型配置   | 自动匹配或 @指定      | YAML        | `agent-manager.ts`  |
+| Agents    | 复杂任务处理，有独立提示词和模型配置   | 自动匹配或 @指定      | Markdown    | `agent-manager.ts`  |
 | Skills    | 特定功能执行（Markdown 或 TypeScript） | 斜杠命令 /skill       | .md / .ts   | `skill-registry.ts` |
 | Rules     | 行为约束和规范，注入到系统提示词       | 始终生效              | Markdown    | `@wqbot/core`       |
 | MCP       | 外部工具服务器集成，扩展可用工具       | 通过 MCP 协议自动注册 | 配置文件    | `mcp-client.ts`     |
 | Knowledge | 知识库检索，模型自动调用               | 内置工具自动注册      | config.yaml | `@wqbot/knowledge`  |
+| Hooks     | 事件驱动的自动化工作流                 | 事件触发              | .hook       | `hook-manager.ts`   |
+| Specs     | 项目规范管理                           | 始终生效              | .md         | `spec-manager.ts`   |
+| Orchestrator | 意图分析和任务调度                 | 自动分析              | -           | `orchestrator.ts`   |
+| Unattended | 无人值守模式和后台任务               | 定时/队列触发         | config.yaml | `unattended/`       |
+| Agents Team | 多代理团队协作                       | 手动/自动             | -           | `agents-team/`      |
+| Self-Loop  | 自引用循环和自我改进                 | 手动/自动             | -           | `self-loop/`        |
 
 > 注：Agents、Skills、MCP、Knowledge 注册的工具最终都汇聚到 `ToolRegistry`（来源标记为 `builtin`/`skill`/`mcp`），由 `tool-adapter.ts` 转换为 AI SDK 格式供模型调用。这是内部实现细节，用户无需直接配置。

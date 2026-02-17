@@ -15,6 +15,9 @@ export type {
   RoutingConfig,
   ModelsConfig,
   Permission,
+  PermissionMode,
+  PermissionCheckResult,
+  ToolPermissionRule,
   SkillTrigger,
   SkillManifest,
   SkillContext,
@@ -92,6 +95,19 @@ export { getConfigWatcher, initializeConfigWatcher, stopConfigWatcher } from './
 // Snapshot
 export { getSnapshotManager } from './snapshot.js'
 
+// GitHub integration
+export {
+  classifyIssue,
+  detectDuplicate,
+  reviewPR,
+  generateMentionResponse,
+  processWebhookEvent,
+  LABEL_TAXONOMY,
+  type IssueClassification,
+  type PRReviewResult,
+  type WebhookEvent,
+} from './github.js'
+
 // Utilities
 export {
   generateId,
@@ -108,3 +124,194 @@ export {
   createDeferred,
   pMap,
 } from './utils.js'
+
+// Retry utilities
+export {
+  retryWithBackoff,
+  retryWithResult,
+  processBatch,
+  CircuitBreaker,
+  withFallback,
+  withTimeout,
+  type RetryOptions,
+  type RetryResult,
+  type BatchResult,
+  type CircuitState,
+  type CircuitBreakerOptions,
+} from './retry-utils.js'
+
+// Config hierarchy
+export {
+  ConfigHierarchy,
+  getConfigHierarchy,
+  loadMergedConfig,
+  type ConfigScope,
+  type ConfigLayer,
+  type ConfigHierarchyOptions,
+  type EnterprisePolicy,
+  type MergedConfig,
+} from './config-hierarchy.js'
+
+// Audit monitor
+export {
+  AuditMonitor,
+  getAuditMonitor,
+  initializeAuditMonitor,
+  logAudit,
+  recordTokens,
+  getUsageStats,
+  MODEL_PRICING,
+  type AuditEntry,
+  type TokenUsage,
+  type CostRecord,
+  type UsageStatistics,
+} from './audit-monitor.js'
+
+// Orchestrator
+export {
+  Orchestrator,
+  getOrchestrator,
+  initializeOrchestrator,
+  type IntentType,
+  type Complexity,
+  type IntentAnalysis,
+  type Task,
+  type TaskDecomposition,
+  type ResourceRequirements,
+  type ExecutionPlan,
+  type ExecutionStep,
+  type OrchestratorState,
+  type ProjectContext,
+} from './orchestrator.js'
+
+// Project Analyzer
+export {
+  ProjectAnalyzer,
+  getProjectAnalyzer,
+  analyzeProject,
+  type Technology,
+  type ProjectStructure,
+  type ProjectAnalysis,
+} from './project-analyzer.js'
+
+// Dynamic Agent Generator
+export {
+  DynamicAgentGenerator,
+  getDynamicAgentGenerator,
+  type AgentTemplate,
+  type GeneratedAgent,
+  type AgentAdaptation,
+} from './dynamic-agent-generator.js'
+
+// Adaptive Configurator
+export {
+  AdaptiveConfigurator,
+  getAdaptiveConfigurator,
+  adaptConfiguration,
+  type ConfigItem,
+  type ResourceConfig,
+  type AdaptationRecommendation,
+  type ConfigSnapshot,
+} from './adaptive-configurator.js'
+
+// Unattended Mode
+export {
+  TaskScheduler,
+  getScheduler,
+  createScheduler,
+  BackgroundExecutor,
+  getBackgroundExecutor,
+  createBackgroundExecutor,
+  createUnattendedMode,
+  initUnattendedMode,
+  type ScheduledTask,
+  type TaskConfig,
+  type TaskHandler,
+  type TaskContext,
+  type TaskResult,
+  type TaskExecution,
+  type TaskEvent,
+  type TaskEventType,
+  type BackgroundJob,
+  type JobPriority,
+  type JobStatus,
+  type WorkerPoolConfig,
+  type JobHandler,
+  type BackgroundJobEvent,
+  type UnattendedConfig,
+  type TaskDefinition,
+  type NotificationConfig,
+  BUILT_IN_TASKS,
+} from './unattended/index.js'
+
+// Agents Team
+export {
+  TeamManager,
+  getTeamManager,
+  createTeamManager,
+  CollaborationEngine,
+  getCollaborationEngine,
+  createCollaborationEngine,
+  createTeamFromTemplate,
+  type AgentRole,
+  type TeamMember,
+  type MemberStatus,
+  type Team,
+  type TeamMode,
+  type TeamConfig,
+  type TeamTask,
+  type TaskStatus,
+  type TaskPriority,
+  type TaskResult,
+  type TeamMessage,
+  type MessageType,
+  type TeamEvent,
+  type TeamEventType,
+  type CollaborationSession,
+  type CollaborationMode,
+  type SessionStatus,
+  type CollaborationPhase,
+  type CollaborationResult,
+  type AgentExecutionContext,
+  type AgentExecutor,
+  TEAM_TEMPLATES,
+} from './agents-team/index.js'
+
+// Self-Referential Loop
+export {
+  SelfLoopController,
+  getLoopController,
+  createLoopController,
+  SelfImprover,
+  getSelfImprover,
+  createSelfImprover,
+  runRalphExLoop,
+  quickImprove,
+  startRalphEx,
+  type LoopConfig,
+  type LoopIteration,
+  type LoopPhase,
+  type IterationStatus,
+  type LoopInput,
+  type LoopOutput,
+  type FileChange,
+  type LoopAnalysis,
+  type Issue,
+  type QualityMetrics,
+  type Suggestion,
+  type LoopSession,
+  type SessionStatus,
+  type Improvement,
+  type LoopEvent,
+  type LoopEventType,
+  type LoopAnalyzer,
+  type LoopExecutor,
+  type LearningRecord,
+  type Feedback,
+  type AdaptationRule,
+  type ImprovementStrategy,
+  type RalphExConfig,
+  type RalphExResult,
+  type LoopStatus,
+  LOOP_TEMPLATES,
+} from './self-loop/index.js'

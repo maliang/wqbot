@@ -1,4 +1,4 @@
-import type { Permission } from '@wqbot/core'
+import type { Permission, PermissionMode, PermissionCheckResult, ToolPermissionRule } from '@wqbot/core'
 import { createModuleLogger } from '@wqbot/core'
 
 const logger = createModuleLogger('permissions')
@@ -19,16 +19,48 @@ interface PermissionRequest {
 
 type PermissionCallback = (request: PermissionRequest) => Promise<boolean>
 
+// Tool permission grant with mode
+interface ToolPermissionGrant {
+  readonly tool: string
+  readonly mode: PermissionMode
+  readonly source: string // skill or agent name
+  readonly grantedAt: Date
+  readonly conditions?: Record<string, unknown>
+}
+
+// Ask callback for interactive permission requests
+type AskCallback = (tool: string, reason?: string) => Promise<boolean>
+
 export class PermissionManager {
   private readonly grants: Map<string, PermissionGrant[]> = new Map()
   private readonly globalGrants: Set<Permission> = new Set()
   private permissionCallback: PermissionCallback | null = null
+
+  // Tool-level permissions
+  private readonly toolGrants: Map<string, PermissionMode> = new Map()
+  private readonly toolAskCallback: AskCallback | null = null
+  private readonly defaultToolMode: PermissionMode = 'ask'
 
   /**
    * Set a callback for permission requests
    */
   setPermissionCallback(callback: PermissionCallback): void {
     this.permissionCallback = callback
+  }
+
+  /**
+   * Set a callback for tool-level ask mode
+   */
+  setToolAskCallback(callback: AskCallback): void {
+    ;(this as { toolAskCallback: AskCallback | null }).toolAskCallback = callback
+  }
+
+  /**
+   * Set default tool permission mode
+   */
+  setDefaultToolMode(mode: PermissionMode): void {
+    this.defaultToolMode = mode
+    logger.debug('Default tool mode set', { mode })
   }
 
   /**
@@ -211,6 +243,119 @@ export class PermissionManager {
   clearAll(): void {
     this.grants.clear()
     this.globalGrants.clear()
+    this.toolGrants.clear()
+  }
+
+  // ===== Tool-level Permission Methods (Claude Code style) =====
+
+  /**
+   * Set permission mode for a specific tool
+   */
+  setToolMode(tool: string, mode: PermissionMode): void {
+    this.toolGrants.set(tool.toLowerCase(), mode)
+    logger.debug('Tool permission mode set', { tool, mode })
+  }
+
+  /**
+   * Set permission modes for multiple tools
+   */
+  setToolModes(rules: readonly ToolPermissionRule[]): void {
+    for (const rule of rules) {
+      this.setToolMode(rule.tool, rule.mode)
+    }
+  }
+
+  /**
+   * Get permission mode for a tool
+   */
+  getToolMode(tool: string): PermissionMode {
+    return this.toolGrants.get(tool.toLowerCase()) ?? this.defaultToolMode
+  }
+
+  /**
+   * Check if a tool can be used (returns detailed result)
+   */
+  async checkToolPermission(tool: string, reason?: string): Promise<PermissionCheckResult> {
+    const mode = this.getToolMode(tool)
+
+    switch (mode) {
+      case 'allow':
+        return { allowed: true, mode: 'allow', shouldAsk: false }
+
+      case 'deny':
+        logger.warn('Tool denied by permission rule', { tool })
+        return {
+          allowed: false,
+          mode: 'deny',
+          reason: `Tool "${tool}" is denied by permission rules`,
+          shouldAsk: false,
+        }
+
+      case 'ask':
+        // If no ask callback, use default mode
+        if (!this.toolAskCallback) {
+          logger.debug('No ask callback, using default mode', { tool, defaultMode: this.defaultToolMode })
+          return {
+            allowed: this.defaultToolMode === 'allow',
+            mode: this.defaultToolMode,
+            reason: 'No permission callback configured',
+            shouldAsk: true,
+          }
+        }
+
+        // Ask user for permission
+        const granted = await this.toolAskCallback(tool, reason)
+
+        if (granted) {
+          // Cache the decision for this session
+          this.setToolMode(tool, 'allow')
+          logger.info('Tool permission granted by user', { tool })
+          return { allowed: true, mode: 'allow', shouldAsk: true }
+        } else {
+          logger.info('Tool permission denied by user', { tool })
+          return {
+            allowed: false,
+            mode: 'deny',
+            reason: 'User denied permission',
+            shouldAsk: true,
+          }
+        }
+    }
+  }
+
+  /**
+   * Quick check if a tool is allowed (synchronous, for simple cases)
+   */
+  isToolAllowed(tool: string): boolean {
+    const mode = this.getToolMode(tool)
+    return mode === 'allow'
+  }
+
+  /**
+   * Get all tool permission rules
+   */
+  getToolRules(): readonly { tool: string; mode: PermissionMode }[] {
+    return [...this.toolGrants.entries()].map(([tool, mode]) => ({ tool, mode }))
+  }
+
+  /**
+   * Export tool grants for persistence
+   */
+  exportToolGrants(): Record<string, PermissionMode> {
+    const result: Record<string, PermissionMode> = {}
+    for (const [tool, mode] of this.toolGrants) {
+      result[tool] = mode
+    }
+    return result
+  }
+
+  /**
+   * Import tool grants from persistence
+   */
+  importToolGrants(data: Record<string, PermissionMode>): void {
+    for (const [tool, mode] of Object.entries(data)) {
+      this.toolGrants.set(tool, mode)
+    }
   }
 
   private getKey(skillName: string): string {

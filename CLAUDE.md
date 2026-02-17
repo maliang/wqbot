@@ -106,7 +106,8 @@ packages/
 ├── security/     # 安全模块 (沙箱、权限、命令解析、审计)
 ├── backend/      # HTTP 后端服务 (Fastify + SSE + OpenAI 兼容接口)
 ├── cli/          # CLI 客户端 (Commander.js + Ink)
-└── gui-tauri/    # Tauri 桌面应用 (React + Vite + Zustand, sidecar 架构)
+├── gui-tauri/    # Tauri 桌面应用 (React + Vite + Zustand, sidecar 架构)
+└── lsp/          # LSP 客户端 (语言服务器协议支持)
 
 scripts/
 ├── install.js          # Node.js 安装脚本
@@ -173,6 +174,221 @@ pnpm version-packages # 应用版本变更 + 同步
 pnpm clean            # 清理构建产物
 ```
 
+---
+
+## 高级系统
+
+### 智能编排器 (Orchestrator)
+
+WQBot 智能编排器是核心任务调度系统：
+
+```typescript
+// 意图分析
+const intent = await orchestrator.analyzeIntent("帮我实现用户认证系统")
+// => {
+//   type: 'feature_development',
+//   complexity: 'high',
+//   confidence: 0.92,
+//   suggestedAgents: ['planner', 'tdd-guide'],
+//   suggestedSkills: ['commit', 'test'],
+//   requiresPlanning: true,
+//   requiresReview: true
+// }
+
+// 任务分解
+const tasks = await orchestrator.decomposeTask(intent)
+// => [{ agent: 'planner', goal: '制定实现计划' }, ...]
+
+// 资源调度
+const resources = await orchestrator.schedule(tasks, projectContext)
+```
+
+**核心模块**:
+
+| 模块 | 文件 | 职责 |
+|------|------|------|
+| ProjectAnalyzer | project-analyzer.ts | 项目结构分析、技术栈检测 |
+| DynamicAgentGenerator | dynamic-agent-generator.ts | 动态生成适配任务的代理 |
+| AdaptiveConfigurator | adaptive-configurator.ts | 自适应配置推荐 |
+
+### Hooks 系统
+
+事件驱动的自动化工作流：
+
+```yaml
+# ~/.wqbot/hooks/pre-commit.hook
+name: pre-commit-lint
+trigger: git-pre-commit
+priority: 100
+actions:
+  - type: lint
+    runner: eslint
+    args: [--fix]
+  - type: test
+    runner: vitest
+    failOnError: false
+```
+
+**触发事件**:
+
+- `git-pre-commit`: Git pre-commit 钩子
+- `git-post-commit`: Git post-commit 钩子
+- `agent-before`: Agent 执行前
+- `agent-after`: Agent 执行后
+- `message-received`: 收到用户消息
+- `task-completed`: 任务完成
+
+### Specs 系统
+
+项目规范管理：
+
+```
+~/.wqbot/specs/
+├── coding-standards.md    # 编码规范
+├── git-rules.md          # Git 工作流规范
+└── security-rules.md     # 安全规范
+```
+
+Specs 在每次对话时自动加载，确保模型遵守项目规范。
+
+### LSP 集成
+
+`@wqbot/lsp` 包提供 Language Server Protocol 支持：
+
+- 代码跳转定义 (`gotoDefinition`)
+- 查找引用 (`findReferences`)
+- 实时诊断 (`diagnostics`)
+- 重命名重构 (`rename`)
+- 符号搜索 (`symbols`)
+
+### 企业级功能
+
+| 功能 | 模块 | 说明 |
+|------|------|------|
+| GitHub 集成 | github.ts | Issue 分类、PR 审查、@mention 响应 |
+| 配置层级 | config-hierarchy.ts | 项目→用户→企业三层继承 |
+| 审计监控 | audit-monitor.ts | Token 消耗、成本统计、操作日志 |
+
+### 无人值守模式
+
+无人值守后台任务执行，无需用户交互：
+
+```typescript
+import { createScheduler, getBackgroundExecutor } from '@wqbot/core'
+
+// 任务调度器 - 定时执行
+const scheduler = createScheduler()
+scheduler.register({
+  name: 'git-sync',
+  cron: '0 */6 * * *',
+  handler: async (ctx) => {
+    // 自动 git add, commit, push
+    return { success: true }
+  },
+  config: { timeout: 60000 }
+})
+scheduler.start()
+
+// 后台任务队列 - 优先级执行
+const executor = getBackgroundExecutor()
+executor.registerHandler('build', async (payload) => {
+  return await buildProject(payload)
+})
+const jobId = executor.enqueue('build', { target: 'prod' }, 'high')
+```
+
+**CLI 命令**:
+```bash
+wqbot unattended --daemon        # 守护进程模式
+wqbot unattended --schedule     # 显示定时任务
+wqbot unattended --status       # 查看状态
+```
+
+### 多代理团队 (Agents Team)
+
+多代理协作完成复杂任务：
+
+```typescript
+import { getTeamManager, getCollaborationEngine, TEAM_TEMPLATES } from '@wqbot/core'
+
+// 从模板创建团队
+const team = await createTeamFromTemplate('codeReview', agents)
+
+// 手动创建团队
+const team = teamManager.createTeam('DevTeam', [
+  { name: 'architect', role: 'coordinator', agent, capabilities: ['design'] },
+  { name: 'developer', role: 'worker', agent, capabilities: ['implement'] },
+  { name: 'reviewer', role: 'reviewer', agent, capabilities: ['review'] }
+], { mode: 'iterative', autoBalanceLoad: true })
+
+// 添加任务
+teamManager.createTask(team.id, '实现用户认证', { priority: 'high' })
+
+// 启动协作
+const session = await collaborationEngine.startSession(team, tasks, 'iterative')
+```
+
+**团队模式**:
+- `parallel`: 并行执行任务
+- `sequential`: 顺序执行任务
+- `iterative`: 迭代执行 + 评审
+- `debate`: 多代理提议 + 投票决策
+
+### 自引用循环 (Self-Referential Loop)
+
+类似 ralphex 的自我改进循环：
+
+```typescript
+import { quickImprove, startRalphEx, getLoopController } from '@wqbot/core'
+
+// 快速改进
+const session = await quickImprove("优化这段代码的性能")
+
+// Ralph-Ex 完整循环
+const result = await startRalphEx("实现用户认证系统")
+// 返回: { success, finalScore, iterations, improvements, learnedRules }
+
+// 手动控制
+const controller = getLoopController()
+
+// 注册自定义分析器
+controller.registerAnalyzer('security', async (input) => {
+  return await securityScan(input)
+})
+
+// 启动循环
+const session = await controller.startLoop(
+  { task: "重构登录模块" },
+  {
+    maxIterations: 10,
+    maxDuration: 300000,
+    convergenceThreshold: 5,
+    autoFixEnabled: true
+  }
+)
+
+// 监听事件
+controller.on('iteration:completed', (event) => {
+  console.log(`Iteration ${event.iteration} score:`, event.data?.score)
+})
+```
+
+**循环阶段**:
+1. `analyze` - 分析当前状态
+2. `plan` - 生成改进计划
+3. `execute` - 执行修改
+4. `verify` - 验证改进效果
+5. `improve` - 应用额外优化
+6. `complete` - 完成
+
+**内置模板**:
+| 模板 | 用途 |
+|------|------|
+| quick | 快速单轮修复 |
+| standard | 标准改进流程 |
+| thorough | 深度全面分析 |
+| ralphex | Ralph-Ex 风格自改进 |
+
 ## 配置系统
 
 ### 目录结构
@@ -182,13 +398,17 @@ pnpm clean            # 清理构建产物
 ├── config.yaml     # 主配置文件（API 密钥、应用配置、模型路由、知识库）
 ├── rules/          # 全局规则 (*.md)
 ├── skills/         # 全局技能 (*.md, *.ts)
-└── agents/         # 全局代理 (*.md)
+├── agents/         # 全局代理 (*.md)
+├── hooks/          # 自动化钩子 (*.hook)
+└── specs/          # 项目规范 (*.md)
 
 项目: .wqbot/
 ├── config.yaml     # 项目配置（覆盖全局）
 ├── rules/          # 项目规则
 ├── skills/         # 项目技能
-└── agents/         # 项目代理
+├── agents/         # 项目代理
+├── hooks/          # 项目钩子
+└── specs/          # 项目规范
 ```
 
 ### 统一配置 (config.yaml)

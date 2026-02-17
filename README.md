@@ -23,6 +23,11 @@
 - **双端界面**: CLI 命令行 + Tauri 桌面 GUI
 - **安全沙箱**: 命令解析、权限管理和审计日志
 - **统一配置**: CLI 和 GUI 共享 API 配置，热加载自动生效
+- **智能编排器**: 意图分析、任务分解、动态资源调度，根据项目上下文自动推荐最佳执行方案
+- **Hooks 系统**: 事件驱动的钩子机制，支持自定义自动化工作流
+- **Specs 系统**: 项目规范管理，统一代码风格和最佳实践
+- **LSP 集成**: Language Server Protocol 客户端，支持代码跳转、重构、诊断
+- **企业级功能**: GitHub 集成、配置层级继承、Token 消耗监控和审计日志
 
 ---
 
@@ -207,7 +212,8 @@ packages/
 ├── security/     # 安全模块 (沙箱、权限、命令解析、审计)
 ├── backend/      # HTTP 后端 (Fastify + SSE + OpenAI 兼容接口)
 ├── cli/          # CLI 客户端 (Commander.js + Ink)
-└── gui-tauri/    # Tauri 桌面应用 (React + Vite + Zustand, sidecar 架构)
+├── gui-tauri/    # Tauri 桌面应用 (React + Vite + Zustand, sidecar 架构)
+└── lsp/          # LSP 客户端 (语言服务器协议支持)
 
 scripts/
 ├── install.js          # Node.js 安装脚本
@@ -219,6 +225,144 @@ scripts/
 ├── generate-homebrew.js # Homebrew formula 生成
 └── generate-scoop.js   # Scoop manifest 生成
 ```
+
+---
+
+## 高级系统
+
+### 智能编排器 (Orchestrator)
+
+WQBot 智能编排器自动分析用户意图并调度最佳资源：
+
+- **意图分析**: 识别任务类型（简单问答、Bug修复、代码审查、重构等）和复杂度
+- **任务分解**: 将复杂任务拆分为可并行执行的子任务
+- **动态资源调度**: 根据项目上下文自动推荐 agents、skills、rules
+- **自适应配置**: 分析项目特征，推荐最优模型和参数
+
+```typescript
+// 编排器自动分析用户输入
+const intent = await orchestrator.analyzeIntent("帮我实现用户认证系统")
+// => { type: 'feature_development', complexity: 'high', confidence: 0.92, ... }
+```
+
+### Hooks 系统
+
+事件驱动的自动化工作流：
+
+```yaml
+# ~/.wqbot/hooks/pre-commit.hook
+name: pre-commit-lint
+trigger: git-pre-commit
+actions:
+  - type: lint
+    runner: eslint
+  - type: test
+    runner: vitest
+```
+
+### Specs 系统
+
+项目规范管理，确保团队代码风格一致：
+
+```
+~/.wqbot/specs/
+├── coding-standards.md    # 编码规范
+├── git-rules.md          # Git 工作流规范
+└── security-rules.md     # 安全规范
+```
+
+### LSP 集成
+
+内置 Language Server Protocol 客户端：
+
+- 代码跳转定义
+- 查找引用
+- 重命名重构
+- 实时诊断
+- 代码补全
+
+### 企业级功能
+
+| 功能 | 说明 |
+|------|------|
+| GitHub 集成 | Issue 分类、PR 审查、@mention 响应 |
+| 配置层级 | 项目 → 用户 → 企业三层继承 |
+| 审计监控 | Token 消耗、成本统计、操作日志 |
+
+### 无人值守模式
+
+后台任务执行，无需用户交互：
+
+```typescript
+// 创建任务调度器
+const scheduler = createScheduler()
+
+// 注册定时任务
+scheduler.register({
+  name: 'git-sync',
+  description: '自动提交同步',
+  cron: '0 */6 * * *',  // 每6小时
+  handler: async (ctx) => {
+    // 执行 git sync
+    return { success: true }
+  },
+  config: { timeout: 60000 }
+})
+
+scheduler.start()
+
+// 或使用后台任务队列
+const executor = getBackgroundExecutor()
+executor.registerHandler('build', async (payload) => {
+  return await runBuild(payload)
+})
+
+executor.enqueue('build', { target: 'production' }, 'high')
+```
+
+### 多代理团队 (Agents Team)
+
+多代理协作，共同完成复杂任务：
+
+```typescript
+// 创建团队
+const team = teamManager.createTeam('DevTeam', [
+  { name: 'architect', role: 'coordinator', agent, capabilities: ['design'] },
+  { name: 'developer', role: 'worker', agent, capabilities: ['implement'] },
+  { name: 'tester', role: 'reviewer', agent, capabilities: ['test'] }
+], { mode: 'parallel' })
+
+// 启动协作
+const session = await collaborationEngine.startSession(team, tasks, 'iterative')
+```
+
+内置团队模板：代码审查团队、开发团队、头脑风暴团队
+
+### 自引用循环 (Self-Referential Loop)
+
+类似 ralphex 的自我改进循环：
+
+```typescript
+// 快速改进
+await quickImprove("优化代码性能")
+
+// 完整 Ralph-Ex 循环
+const result = await startRalphEx("实现用户认证系统")
+// => { success: true, finalScore: 85, iterations: 8, learnedRules: 5 }
+
+// 手动控制
+const controller = getLoopController()
+controller.registerAnalyzer('code', async (input) => {
+  return await analyzeCode(input)
+})
+
+const session = await controller.startLoop({ task: "优化代码" }, {
+  maxIterations: 10,
+  convergenceThreshold: 5
+})
+```
+
+循环阶段：分析 → 计划 → 执行 → 验证 → 改进 → 完成
 
 ---
 
