@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@wqbot/core', () => ({
   createModuleLogger: () => ({
@@ -9,7 +9,7 @@ vi.mock('@wqbot/core', () => ({
   }),
 }))
 
-import { CommandParser } from './command-parser.js'
+import { CommandParser } from '../src/command-parser.js'
 
 describe('CommandParser', () => {
   const parser = new CommandParser()
@@ -62,7 +62,6 @@ describe('CommandParser', () => {
     })
 
     it('sudo 命令包含风险', () => {
-      // sudo 本身不在规则中被拒绝，但 analyze 返回 commands
       const result = parser.analyze('sudo ls')
       expect(result.commands.length).toBeGreaterThan(0)
       expect(result.commands[0]!.name).toBe('sudo')

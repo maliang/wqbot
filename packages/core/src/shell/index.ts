@@ -5,7 +5,7 @@
  * Trust mode bypasses the security sandbox for trusted workflows.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import { EventEmitter } from 'events'
 import { exec, spawn, type ExecOptions, type SpawnOptions } from 'child_process'
 import { promisify } from 'util'
@@ -77,9 +77,9 @@ export interface TrustConfig {
 const DANGEROUS_PATTERNS = [
   /rm\s+-rf\s+\//,                    // Recursive force delete root
   /:\(\)\{.*:\|&.*\}/,               // Fork bomb
-  /dd\s+if=.*of=\/dev\/,              // Direct disk write
+  /dd\s+if=.*of=\/dev\//,              // Direct disk write
   /mkfs\./,                           // Format filesystem
-  />\s*\/dev\/,                       // Device redirect
+  />\s*\/dev\//,                       // Device redirect
   /curl.*\|.*sh/i,                    // Pipe to shell (Curl)
   /wget.*\|.*sh/i,                    // Pipe to shell (Wget)
   /chmod\s+-R\s+777/,                // World-writable

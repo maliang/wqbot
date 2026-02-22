@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
-import { jsonSchemaToZod, convertToAITools } from './tool-adapter.js'
+import { jsonSchemaToZod, convertToAITools } from '../src/tool-adapter.js'
 
 describe('jsonSchemaToZod', () => {
   it('string', () => {
@@ -86,5 +86,33 @@ describe('convertToAITools', () => {
     const result = convertToAITools(tools)
     expect(result).toHaveProperty('test_tool')
     expect(result.test_tool).toBeDefined()
+  })
+
+  it('转换多个工具', () => {
+    const tools = [
+      {
+        name: 'tool1',
+        description: 'First tool',
+        inputSchema: { type: 'object', properties: {} },
+        source: 'builtin' as const,
+        execute: async () => ({ content: 'ok' }),
+      },
+      {
+        name: 'tool2',
+        description: 'Second tool',
+        inputSchema: { type: 'object', properties: { x: { type: 'number' } } },
+        source: 'skill' as const,
+        execute: async () => ({ content: 'ok' }),
+      },
+    ]
+
+    const result = convertToAITools(tools)
+    expect(result).toHaveProperty('tool1')
+    expect(result).toHaveProperty('tool2')
+  })
+
+  it('空工具列表返回空对象', () => {
+    const result = convertToAITools([])
+    expect(Object.keys(result).length).toBe(0)
   })
 })

@@ -6,7 +6,7 @@
 
 import { createScheduler, type ScheduledTask } from './task-scheduler.js'
 import { createBackgroundExecutor, type JobHandler } from './background-executor.js'
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import type { UnattendedConfig } from './types.js'
 
 const logger = createModuleLogger('unattended')

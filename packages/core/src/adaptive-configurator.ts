@@ -1,8 +1,8 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import * as os from 'node:os'
-import { createModuleLogger, deepMerge } from '@wqbot/core'
-import type { ProjectContext, IntentAnalysis, ResourceRequirements } from './orchestrator.js'
+import { createModuleLogger } from './logger.js'
+import { deepMerge } from './utils.js'
+import type { ProjectContext, IntentAnalysis } from './orchestrator.js'
 
 const logger = createModuleLogger('adaptive-configurator')
 
@@ -129,7 +129,7 @@ export class AdaptiveConfigurator {
       } catch (error) {
         logger.error('Failed to apply recommendation', { 
           name: rec.name, 
-          error: error instanceof Error ? error.message : String(error) 
+          error: error instanceof Error ? error.message : 'Unknown error'
         })
         failed.push(rec.name)
       }
@@ -158,7 +158,7 @@ export class AdaptiveConfigurator {
    * Analyze agents for recommendations
    */
   private async analyzeAgents(
-    context: ProjectContext,
+    _context: ProjectContext,
     intent: IntentAnalysis
   ): Promise<AdaptationRecommendation[]> {
     const recs: AdaptationRecommendation[] = []
@@ -258,7 +258,7 @@ export class AdaptiveConfigurator {
    * Analyze rules for recommendations
    */
   private async analyzeRules(
-    context: ProjectContext,
+    _context: ProjectContext,
     intent: IntentAnalysis
   ): Promise<AdaptationRecommendation[]> {
     const recs: AdaptationRecommendation[] = []
@@ -354,7 +354,7 @@ export class AdaptiveConfigurator {
    * Analyze MCP for recommendations
    */
   private async analyzeMCP(
-    context: ProjectContext,
+    _context: ProjectContext,
     intent: IntentAnalysis
   ): Promise<AdaptationRecommendation[]> {
     const recs: AdaptationRecommendation[] = []
@@ -397,11 +397,11 @@ export class AdaptiveConfigurator {
    */
   private async loadCurrentConfig(): Promise<ResourceConfig> {
     return {
-      agents: await this.loadJsonSafe('agents.json', {}),
-      skills: await this.loadJsonSafe('skills.json', {}),
-      rules: await this.loadJsonSafe('rules.json', {}),
-      hooks: await this.loadJsonSafe('hooks.json', {}),
-      mcp: await this.loadJsonSafe('mcp.json', {}),
+      agents: await this.loadJsonSafe('agents.json', {}) as Record<string, unknown>,
+      skills: await this.loadJsonSafe('skills.json', {}) as Record<string, unknown>,
+      rules: await this.loadJsonSafe('rules.json', {}) as Record<string, unknown>,
+      hooks: await this.loadJsonSafe('hooks.json', {}) as Record<string, unknown>,
+      mcp: await this.loadJsonSafe('mcp.json', {}) as Record<string, unknown>,
     }
   }
 
@@ -505,11 +505,4 @@ export async function adaptConfiguration(
 ): Promise<readonly AdaptationRecommendation[]> {
   const configurator = new AdaptiveConfigurator(projectRoot)
   return configurator.analyzeAndRecommend(context, intent)
-}
-
-export type {
-  ConfigItem,
-  ResourceConfig,
-  AdaptationRecommendation,
-  ConfigSnapshot,
 }

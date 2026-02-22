@@ -585,6 +585,42 @@ registerCommand({
   },
 })
 
+// 语言命令
+registerCommand({
+  name: 'language',
+  aliases: ['lang', 'locale', 'l'],
+  description: '查看或切换语言',
+  usage: '/language [en|zh-CN]',
+  handler: async (args) => {
+    const api = getApiClient()
+    const targetLang = args[0]
+
+    // 如果没有参数，显示当前语言
+    if (!targetLang) {
+      const result = await api.getLanguage()
+      if (result.success && result.data) {
+        const langName = result.data.language === 'zh-CN' ? '简体中文' : 'English'
+        return { success: true, message: `当前语言: ${langName}\n使用 /language en 切换到 English\n使用 /language zh-CN 切换到简体中文` }
+      }
+      return { success: false, message: '获取语言设置失败' }
+    }
+
+    // 验证语言参数
+    const validLangs = ['en', 'zh-CN']
+    if (!validLangs.includes(targetLang)) {
+      return { success: false, message: `无效的语言代码: ${targetLang}\n可用语言: en (English), zh-CN (简体中文)` }
+    }
+
+    // 设置语言
+    const result = await api.setLanguage(targetLang)
+    if (result.success) {
+      const langName = targetLang === 'zh-CN' ? '简体中文' : 'English'
+      return { success: true, message: `已切换语言: ${langName}\nAI 回复将使用 ${langName}` }
+    }
+    return { success: false, message: result.error || '设置语言失败' }
+  },
+})
+
 // 解析并执行命令
 export async function executeCommand(input: string): Promise<CommandResult | null> {
   if (!input.startsWith('/')) {

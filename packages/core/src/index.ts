@@ -55,8 +55,14 @@ export {
   getLocale,
   getAvailableLocales,
   getLocaleDisplayName,
+  getLanguageInstruction,
+  getAILanguageInstruction,
+  getThinkingPrefix,
+  getFeedbackMessages,
+  LANGUAGE_INSTRUCTIONS,
   type Locale,
   type TranslationData,
+  type LanguageInstruction,
 } from './i18n.js'
 
 // Theme
@@ -262,20 +268,21 @@ export {
   type TeamTask,
   type TaskStatus,
   type TaskPriority,
-  type TaskResult,
   type TeamMessage,
   type MessageType,
   type TeamEvent,
   type TeamEventType,
   type CollaborationSession,
   type CollaborationMode,
-  type SessionStatus,
   type CollaborationPhase,
   type CollaborationResult,
   type AgentExecutionContext,
   type AgentExecutor,
   TEAM_TEMPLATES,
 } from './agents-team/index.js'
+
+// Re-export with alias to avoid conflicts
+export { type TaskResult as TeamTaskResult, type SessionStatus as TeamSessionStatus } from './agents-team/index.js'
 
 // Self-Referential Loop
 export {
@@ -300,7 +307,6 @@ export {
   type QualityMetrics,
   type Suggestion,
   type LoopSession,
-  type SessionStatus,
   type Improvement,
   type LoopEvent,
   type LoopEventType,
@@ -315,6 +321,9 @@ export {
   type LoopStatus,
   LOOP_TEMPLATES,
 } from './self-loop/index.js'
+
+// Re-export with alias to avoid conflicts
+export { type SessionStatus as LoopSessionStatus } from './self-loop/index.js'
 
 // Channels (Multi-platform messaging)
 export {

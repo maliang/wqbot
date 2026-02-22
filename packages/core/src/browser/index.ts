@@ -5,7 +5,7 @@
  * testing, and autonomous web interactions.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import { EventEmitter } from 'events'
 
 const logger = createModuleLogger('browser')

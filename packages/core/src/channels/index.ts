@@ -4,7 +4,7 @@
  * Supports Telegram, Slack, WhatsApp, Discord, and other messaging platforms.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import { EventEmitter } from 'events'
 
 const logger = createModuleLogger('channels')

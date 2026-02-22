@@ -5,7 +5,7 @@
  * and adapting based on outcomes.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import type { LoopSession, LoopIteration, LoopInput, QualityMetrics, Improvement } from './loop-controller.js'
 
 const logger = createModuleLogger('self-loop:improver')

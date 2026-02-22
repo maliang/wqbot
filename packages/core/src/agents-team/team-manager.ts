@@ -5,7 +5,7 @@
  * task distribution, and collaboration patterns.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import { EventEmitter } from 'events'
 import type { Agent } from '@wqbot/skills'
 
@@ -71,7 +71,7 @@ export interface TeamTask {
   completedAt?: Date
 }
 
-export type TaskStatus = 'pending' | 'assigned' | ' 'reviewin_progress' |' | 'completed' | 'failed'
+export type TaskStatus = 'pending' | 'assigned' | 'in_progress' | 'review' | 'completed' | 'failed'
 export type TaskPriority = 'low' | 'normal' | 'high' | 'critical'
 
 export interface TaskResult {
@@ -499,8 +499,8 @@ export const TEAM_TEMPLATES = {
   codeReview: {
     name: 'Code Review Team',
     description: 'Multi-agent code review with parallel checking',
-    roles:      { name [
-: 'lead', role: 'leader', capabilities: ['review', 'approve'] },
+    roles: [
+      { name: 'lead', role: 'leader', capabilities: ['review', 'approve'] },
       { name: 'syntax-checker', role: 'specialist', capabilities: ['lint', 'typecheck'] },
       { name: 'security-checker', role: 'specialist', capabilities: ['security-scan'] },
       { name: 'style-checker', role: 'specialist', capabilities: ['format-check'] }

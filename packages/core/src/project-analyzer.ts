@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { createModuleLogger } from '@wqbot/core'
+import { createModuleLogger } from './logger.js'
 import type { ProjectContext } from './orchestrator.js'
 
 const logger = createModuleLogger('project-analyzer')
@@ -195,7 +195,7 @@ export class ProjectAnalyzer {
       if (pkg.dependencies?.nest) {
         tech.push({ name: 'NestJS', category: 'framework', confidence: 1 })
       }
-      if (pkg.dependencies?.@nestjs) {
+      if (pkg.dependencies?.['@nestjs/common'] || pkg.dependencies?.['@nestjs/core']) {
         tech.push({ name: 'NestJS', category: 'framework', confidence: 1 })
       }
 
@@ -241,7 +241,7 @@ export class ProjectAnalyzer {
       if (pkg.dependencies?.prisma) {
         tech.push({ name: 'Prisma', category: 'database', confidence: 1 })
       }
-      if (pkg.dependencies?.drizzle-orm) {
+      if (pkg.dependencies?.['drizzle-orm']) {
         tech.push({ name: 'Drizzle', category: 'database', confidence: 1 })
       }
       if (pkg.dependencies?.mongoose) {
@@ -302,6 +302,7 @@ export class ProjectAnalyzer {
         }
         if (content.includes('flask')) {
           tech.push({ name: 'Flask', category: 'framework', confidence: 1 })
+        }
       }
 
       if (hasPoetry) {
@@ -309,8 +310,9 @@ export class ProjectAnalyzer {
       } else if (hasPipfile) {
         tech.push({ name: 'Pipenv', category: 'packageManager', confidence: 1 })
       }
-    } catch {
+    } catch (e) {
       // Python files not found
+      void e
     }
 
     return tech
@@ -484,10 +486,21 @@ export class ProjectAnalyzer {
       t.name === 'TypeScript' || t.name === 'mypy'
     )
 
-    return {
+    // Build the result object conditionally
+    const result: {
+      projectRoot: string
+      language: string
+      framework?: string
+      packageManager: string
+      hasTests: boolean
+      hasLinting: boolean
+      hasTypeChecking: boolean
+      recentCommits: readonly string[]
+      openPRs: number
+      issues: number
+    } = {
       projectRoot: this.projectRoot,
       language,
-      framework,
       packageManager,
       hasTests,
       hasLinting,
@@ -496,6 +509,13 @@ export class ProjectAnalyzer {
       openPRs: 0,
       issues: 0,
     }
+
+    // Add framework only if defined
+    if (framework) {
+      result.framework = framework
+    }
+
+    return result
   }
 
   /**
@@ -577,10 +597,4 @@ export function getProjectAnalyzer(projectRoot?: string): ProjectAnalyzer {
 export async function analyzeProject(projectRoot?: string): Promise<ProjectAnalysis> {
   const analyzer = new ProjectAnalyzer(projectRoot)
   return analyzer.analyze()
-}
-
-export type {
-  Technology,
-  ProjectStructure,
-  ProjectAnalysis,
 }

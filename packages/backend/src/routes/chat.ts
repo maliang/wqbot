@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify'
-import { getConversationStore, getConversationOptimizer } from '@wqbot/storage'
+import { getConversationStore, getConversationOptimizer, getSettingsStore } from '@wqbot/storage'
 import type { OptimizerMessage } from '@wqbot/storage'
 import { getModelRouter, convertToAITools } from '@wqbot/models'
 import { getToolRegistry, getAgentManager } from '@wqbot/skills'
-import { getSSEManager } from '../sse.js'
+import { getSSEManager, getAILanguageInstruction, getLocale } from '@wqbot/core'
 import type { ApiResponse, ChatRequest, ChatResponse } from '../types.js'
 
 export async function chatRoutes(fastify: FastifyInstance): Promise<void> {
@@ -74,15 +74,28 @@ export async function chatRoutes(fastify: FastifyInstance): Promise<void> {
     const agentManager = getAgentManager()
     const agent = agentManager.matchAgent(message)
 
+    // 获取语言偏好设置
+    const settingsStore = getSettingsStore()
+    const savedLanguage = settingsStore.get('language')
+    const currentLocale = getLocale()
+    const language = savedLanguage || currentLocale
+    const languageInstruction = getAILanguageInstruction(language as 'en' | 'zh-CN')
+
     // 流式响应
     let fullResponse = ''
 
     try {
       const chatModel = agent?.model || model
+      // 构建系统提示词，注入语言指令
+      const baseSystemPrompt = agent?.prompt || ''
+      const fullSystemPrompt = baseSystemPrompt
+        ? `${baseSystemPrompt}\n\n${languageInstruction}`
+        : languageInstruction
+
       const stream = modelRouter.chatStream(messages, {
         ...(chatModel ? { model: chatModel } : {}),
         ...(agent?.temperature !== undefined ? { temperature: agent.temperature } : {}),
-        ...(agent?.prompt ? { systemPrompt: agent.prompt } : {}),
+        ...(fullSystemPrompt ? { systemPrompt: fullSystemPrompt } : {}),
         ...(aiTools ? { tools: aiTools } : {}),
       })
 
@@ -154,11 +167,24 @@ export async function chatRoutes(fastify: FastifyInstance): Promise<void> {
       const agentManager = getAgentManager()
       const agent = agentManager.matchAgent(message)
 
+      // 获取语言偏好设置
+      const settingsStore = getSettingsStore()
+      const savedLanguage = settingsStore.get('language')
+      const currentLocale = getLocale()
+      const language = savedLanguage || currentLocale
+      const languageInstruction = getAILanguageInstruction(language as 'en' | 'zh-CN')
+
       const syncModel = agent?.model || model
+      // 构建系统提示词，注入语言指令
+      const baseSystemPrompt = agent?.prompt || ''
+      const fullSystemPrompt = baseSystemPrompt
+        ? `${baseSystemPrompt}\n\n${languageInstruction}`
+        : languageInstruction
+
       const result = await modelRouter.chatSync(messages, {
         ...(syncModel ? { model: syncModel } : {}),
         ...(agent?.temperature !== undefined ? { temperature: agent.temperature } : {}),
-        ...(agent?.prompt ? { systemPrompt: agent.prompt } : {}),
+        ...(fullSystemPrompt ? { systemPrompt: fullSystemPrompt } : {}),
         ...(aiTools ? { tools: aiTools } : {}),
       })
 

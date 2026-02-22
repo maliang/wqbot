@@ -124,7 +124,9 @@ export class ModelRouter {
 
     // 前缀匹配（如 claude-sonnet-4-xxx 匹配 claude-sonnet-4-20250514）
     for (const [key, info] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
-      if (resolvedId.startsWith(key.split('-').slice(0, -1).join('-')) || key.startsWith(resolvedId)) {
+      const keyPrefix = key.split('-').slice(0, -1).join('-')
+      // 检查 resolvedId 是否以已知模型前缀开头（确保前缀长度足够避免误匹配）
+      if (keyPrefix.length >= 3 && resolvedId.startsWith(keyPrefix + '-')) {
         return info
       }
     }

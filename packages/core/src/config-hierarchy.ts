@@ -1,7 +1,8 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { createModuleLogger, deepMerge } from '@wqbot/core'
+import { createModuleLogger } from './logger.js'
+import { deepMerge } from './utils.js'
 
 const logger = createModuleLogger('config-hierarchy')
 
@@ -98,12 +99,21 @@ export class ConfigHierarchy {
     // Track sources
     const sources = this.trackSources(layers)
 
-    return {
-      config: merged,
-      layers,
-      sources,
-      policies: enterpriseLayer?.config.policies as EnterprisePolicy | undefined,
-    }
+    // Build result - include policies only if enterprise layer has them
+    const result: MergedConfig = enterpriseLayer?.config.policies
+      ? {
+          config: merged,
+          layers,
+          sources,
+          policies: enterpriseLayer.config.policies as EnterprisePolicy,
+        }
+      : {
+          config: merged,
+          layers,
+          sources,
+        }
+
+    return result
   }
 
   /**
@@ -265,29 +275,30 @@ export class ConfigHierarchy {
         result[key] = {}
       } else {
         // Remove quotes
-        value = value.replace(/^["']|["']$/g, '')
+        let parsedValue: unknown = value.replace(/^["']|["']$/g, '')
+        const strValue = String(parsedValue)
 
         // Parse arrays
-        if (value.startsWith('[') && value.endsWith(']')) {
-          value = value
+        if (strValue.startsWith('[') && strValue.endsWith(']')) {
+          parsedValue = strValue
             .slice(1, -1)
             .split(',')
-            .map(v => v.trim().replace(/^["']|["']$/g, ''))
+            .map((v: string) => v.trim().replace(/^["']|["']$/g, ''))
         }
 
         // Parse booleans
-        if (value === 'true') value = true
-        if (value === 'false') value = false
+        if (strValue === 'true') parsedValue = true
+        if (strValue === 'false') parsedValue = false
 
         // Parse numbers
-        if (typeof value === 'string' && /^\d+$/.test(value)) {
-          value = parseInt(value, 10)
+        if (typeof parsedValue === 'string' && /^\d+$/.test(parsedValue)) {
+          parsedValue = parseInt(parsedValue, 10)
         }
 
         if (indent > currentIndent && currentKey) {
-          ;(result[currentKey] as Record<string, unknown>)[key] = value
+          ;(result[currentKey] as Record<string, unknown>)[key] = parsedValue as string
         } else {
-          result[key] = value
+          result[key] = parsedValue as string
         }
       }
     }

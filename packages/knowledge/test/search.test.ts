@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// mock 掉依赖链避免 bun:sqlite
+// Move existing test file content here with updated import paths
 vi.mock('@wqbot/storage', () => ({
   getDatabase: vi.fn(),
 }))
@@ -9,7 +9,7 @@ vi.mock('@wqbot/core', () => ({
   generateId: () => 'mock-id',
 }))
 
-import { cosineSimilarity, rrfFusion } from './search.js'
+import { cosineSimilarity, rrfFusion } from '../src/search.js'
 
 describe('cosineSimilarity', () => {
   it('相同向量返回 1', () => {

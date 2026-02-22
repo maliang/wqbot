@@ -5,7 +5,7 @@
  * and worker pool for parallel processing.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import { EventEmitter } from 'events'
 import type { TaskResult, TaskContext } from './task-scheduler.js'
 

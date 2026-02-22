@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Move existing test file content here with updated import paths
 vi.mock('@wqbot/core', () => ({
   createModuleLogger: () => ({
     debug: vi.fn(),
@@ -9,7 +10,7 @@ vi.mock('@wqbot/core', () => ({
   }),
 }))
 
-import { ConversationOptimizer, type OptimizerMessage } from './conversation-optimizer.js'
+import { ConversationOptimizer, type OptimizerMessage } from '../src/conversation-optimizer.js'
 
 function makeMsg(id: string, role: 'user' | 'assistant', content: string): OptimizerMessage {
   return { id, role, content, timestamp: new Date() }

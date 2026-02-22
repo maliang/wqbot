@@ -1,4 +1,4 @@
-import { createModuleLogger } from '@wqbot/core'
+import { createModuleLogger } from './logger.js'
 
 const logger = createModuleLogger('github-integration')
 

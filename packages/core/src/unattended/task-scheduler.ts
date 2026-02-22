@@ -5,7 +5,7 @@
  * for unattended/headless operation.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import type { EventEmitter } from 'events'
 
 const logger = createModuleLogger('unattended:scheduler')

@@ -1,7 +1,8 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { createModuleLogger, getConfigManager } from '@wqbot/core'
+import { createModuleLogger } from './logger.js'
+import { getConfigManager } from './config.js'
 import type { IntentAnalysis, ProjectContext } from './orchestrator.js'
 
 const logger = createModuleLogger('dynamic-agent-generator')

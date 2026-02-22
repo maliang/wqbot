@@ -5,7 +5,7 @@
  * self-improvement and autonomous code optimization.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import { EventEmitter } from 'events'
 
 const logger = createModuleLogger('self-loop:controller')

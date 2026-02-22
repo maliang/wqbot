@@ -1,4 +1,4 @@
-import { createModuleLogger } from '@wqbot/core'
+import { createModuleLogger } from './logger.js'
 
 const logger = createModuleLogger('audit-monitor')
 
@@ -157,6 +157,7 @@ export class AuditMonitor {
    */
   private calculateCost(model: string, inputTokens: number, outputTokens: number): number {
     const pricing = MODEL_PRICING[model] ?? MODEL_PRICING['gpt-4o-mini']
+    if (!pricing) return 0
 
     const inputCost = (inputTokens / 1000) * pricing.input
     const outputCost = (outputTokens / 1000) * pricing.output
@@ -186,23 +187,27 @@ export class AuditMonitor {
     // Group by model
     const byModel: Record<string, { tokens: number; requests: number; cost: number }> = {}
     for (const u of periodUsage) {
-      if (!byModel[u.model]) {
-        byModel[u.model] = { tokens: 0, requests: 0, cost: 0 }
+      const model = u.model
+      if (!byModel[model]) {
+        byModel[model] = { tokens: 0, requests: 0, cost: 0 }
       }
-      byModel[u.model].tokens += u.totalTokens
-      byModel[u.model].requests += 1
-      byModel[u.model].cost += u.cost ?? 0
+      const entry = byModel[model]!
+      entry.tokens += u.totalTokens
+      entry.requests += 1
+      entry.cost += u.cost ?? 0
     }
 
     // Group by provider
     const byProvider: Record<string, { tokens: number; requests: number; cost: number }> = {}
     for (const u of periodUsage) {
-      if (!byProvider[u.provider]) {
-        byProvider[u.provider] = { tokens: 0, requests: 0, cost: 0 }
+      const provider = u.provider
+      if (!byProvider[provider]) {
+        byProvider[provider] = { tokens: 0, requests: 0, cost: 0 }
       }
-      byProvider[u.provider].tokens += u.totalTokens
-      byProvider[u.provider].requests += 1
-      byProvider[u.provider].cost += u.cost ?? 0
+      const entry = byProvider[provider]!
+      entry.tokens += u.totalTokens
+      entry.requests += 1
+      entry.cost += u.cost ?? 0
     }
 
     return {

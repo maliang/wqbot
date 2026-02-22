@@ -4,6 +4,58 @@ export interface TranslationData {
   [key: string]: string | TranslationData
 }
 
+// AI语言指令模板 - 告诉AI使用用户偏好的语言
+export interface LanguageInstruction {
+  /** 语言代码 */
+  code: Locale
+  /** 语言显示名称 */
+  displayName: string
+  /** AI系统提示词中的语言指令 */
+  instruction: string
+  /** 思考描述前缀 */
+  thinkingPrefix: string
+  /** 反馈/状态消息 */
+  feedback: {
+    loading: string
+    saving: string
+    done: string
+    error: string
+    success: string
+    failed: string
+  }
+}
+
+export const LANGUAGE_INSTRUCTIONS: Record<Locale, LanguageInstruction> = {
+  en: {
+    code: 'en',
+    displayName: 'English',
+    instruction: 'You must respond in English. All explanations, comments, code annotations, and feedback should be in English.',
+    thinkingPrefix: 'Thinking',
+    feedback: {
+      loading: 'Loading...',
+      saving: 'Saving...',
+      done: 'Done',
+      error: 'Error',
+      success: 'Success',
+      failed: 'Failed',
+    },
+  },
+  'zh-CN': {
+    code: 'zh-CN',
+    displayName: '简体中文',
+    instruction: '你必须使用中文回复。所有解释、注释、代码注释和反馈都应使用中文。',
+    thinkingPrefix: '思考中',
+    feedback: {
+      loading: '加载中...',
+      saving: '保存中...',
+      done: '完成',
+      error: '错误',
+      success: '成功',
+      failed: '失败',
+    },
+  },
+}
+
 const translations: Map<Locale, TranslationData> = new Map()
 
 let currentLocale: Locale = 'en'
@@ -388,6 +440,38 @@ export function getLocaleDisplayName(locale: Locale): string {
     'zh-CN': '简体中文',
   }
   return names[locale] ?? locale
+}
+
+/**
+ * Get language instruction for AI prompts
+ */
+export function getLanguageInstruction(locale?: Locale): LanguageInstruction {
+  const targetLocale = locale || currentLocale
+  return LANGUAGE_INSTRUCTIONS[targetLocale] || LANGUAGE_INSTRUCTIONS['en']
+}
+
+/**
+ * Get AI system prompt instruction for current locale
+ */
+export function getAILanguageInstruction(locale?: Locale): string {
+  const instruction = getLanguageInstruction(locale)
+  return instruction.instruction
+}
+
+/**
+ * Get thinking prefix for current locale
+ */
+export function getThinkingPrefix(locale?: Locale): string {
+  const instruction = getLanguageInstruction(locale)
+  return instruction.thinkingPrefix
+}
+
+/**
+ * Get feedback messages for current locale
+ */
+export function getFeedbackMessages(locale?: Locale): LanguageInstruction['feedback'] {
+  const instruction = getLanguageInstruction(locale)
+  return instruction.feedback
 }
 
 // Initialize on module load

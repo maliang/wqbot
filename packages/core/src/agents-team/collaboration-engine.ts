@@ -5,7 +5,7 @@
  * and task coordination for multi-agent workflows.
  */
 
-import { createModuleLogger } from '@wqbot/logger'
+import { createModuleLogger } from '../logger'
 import { EventEmitter } from 'events'
 import type { Team, TeamMember, TeamTask, TeamMessage, TeamConfig, TaskResult } from './team-manager.js'
 

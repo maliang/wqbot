@@ -1,4 +1,4 @@
-import { createModuleLogger } from '@wqbot/core'
+import { createModuleLogger } from './logger.js'
 import { sleep } from './utils.js'
 
 const logger = createModuleLogger('retry-utils')
@@ -236,8 +236,8 @@ export class CircuitBreaker {
   private readonly failureThreshold: number
   private readonly successThreshold: number
   private readonly resetTimeout: number
-  private readonly onOpen?: () => void
-  private readonly onClose?: () => void
+  private readonly onOpen
+  private readonly onClose
 
   constructor(options: CircuitBreakerOptions = {}) {
     this.failureThreshold = options.failureThreshold ?? 5

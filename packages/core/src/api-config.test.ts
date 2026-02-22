@@ -9,7 +9,7 @@ vi.mock('./logger.js', () => ({
   }),
 }))
 
-import { expandVariables, ApiConfigSchema } from './api-config.js'
+import { expandVariables, ConfigSchema } from './api-config.js'
 
 describe('expandVariables', () => {
   const originalEnv = { ...process.env }
@@ -38,26 +38,30 @@ describe('expandVariables', () => {
   })
 })
 
-describe('ApiConfigSchema', () => {
+describe('ConfigSchema', () => {
   it('验证合法配置', () => {
     const config = {
       defaultProvider: 'openai',
       defaultModel: 'gpt-4o',
-      openai: { apiKey: 'sk-xxx' },
-      anthropic: { apiKey: 'sk-ant-xxx' },
+      providers: {
+        openai: { apiKey: 'sk-xxx' },
+        anthropic: { apiKey: 'sk-ant-xxx' },
+      },
     }
-    const result = ApiConfigSchema.safeParse(config)
+    const result = ConfigSchema.safeParse(config)
     expect(result.success).toBe(true)
   })
 
   it('空对象通过', () => {
-    const result = ApiConfigSchema.safeParse({})
+    const result = ConfigSchema.safeParse({})
     expect(result.success).toBe(true)
   })
 
   it('非法字段拒绝', () => {
-    const result = ApiConfigSchema.safeParse({
-      openai: { apiKey: 123 },
+    const result = ConfigSchema.safeParse({
+      providers: {
+        openai: { apiKey: 123 },
+      },
     })
     expect(result.success).toBe(false)
   })

@@ -1,5 +1,4 @@
-import { z } from 'zod'
-import { createModuleLogger, getConfigManager } from '@wqbot/core'
+import { createModuleLogger } from './logger.js'
 
 const logger = createModuleLogger('orchestrator')
 
@@ -137,14 +136,12 @@ export class Orchestrator {
   /**
    * Analyze user intent
    */
-  async analyzeIntent(input: string, context?: Partial<ProjectContext>): Promise<IntentAnalysis> {
-    const fullContext = { ...this.projectContext, ...context }
+  async analyzeIntent(input: string, _context?: Partial<ProjectContext>): Promise<IntentAnalysis> {
+    const fullContext = this.projectContext ?? null
     
     // Use AI to analyze intent
-    const prompt = this.buildIntentAnalysisPrompt(input, fullContext)
-    
-    const config = getConfigManager()
     // In real implementation, this would call the model router
+    
     // For now, return a basic analysis based on patterns
     
     const analysis = this.ruleBasedIntentAnalysis(input, fullContext)
@@ -161,7 +158,7 @@ export class Orchestrator {
   /**
    * Rule-based intent analysis (fallback)
    */
-  private ruleBasedIntentAnalysis(input: string, context: ProjectContext | null): IntentAnalysis {
+  private ruleBasedIntentAnalysis(input: string, _context: ProjectContext | null): IntentAnalysis {
     const lowerInput = input.toLowerCase()
     
     // Code review patterns
@@ -314,43 +311,11 @@ export class Orchestrator {
   }
 
   /**
-   * Build intent analysis prompt
-   */
-  private buildIntentAnalysisPrompt(input: string, context: ProjectContext | null): string {
-    return `
-Analyze this user request and determine the intent.
-
-User Request: ${input}
-
-Project Context:
-- Language: ${context?.language ?? 'unknown'}
-- Framework: ${context?.framework ?? 'unknown'}
-- Package Manager: ${context?.packageManager ?? 'unknown'}
-- Has Tests: ${context?.hasTests ?? 'unknown'}
-- Has Linting: ${context?.hasLinting ?? 'unknown'}
-- Has Type Checking: ${context?.hasTypeChecking ?? 'unknown'}
-
-Return a JSON object with:
-{
-  "type": "simple_qa" | "code_explanation" | "code_generation" | "code_modification" | "bug_fix" | "refactoring" | "code_review" | "testing" | "documentation" | "project_setup" | "multi_step" | "exploration" | "unknown",
-  "complexity": "trivial" | "low" | "medium" | "high" | "critical",
-  "confidence": 0.0-1.0,
-  "reasoning": "explanation of why this type was selected",
-  "suggestedAgents": ["agent1", "agent2"],
-  "suggestedSkills": ["skill1", "skill2"],
-  "suggestedTools": ["tool1", "tool2"],
-  "requiresPlanning": true/false,
-  "requiresReview": true/false
-}
-`
-  }
-
-  /**
    * Decompose task into subtasks
    */
   async decomposeTask(
     intent: IntentAnalysis,
-    context?: ProjectContext
+    _context?: ProjectContext
   ): Promise<TaskDecomposition> {
     const tasks: Task[] = []
     
@@ -449,7 +414,7 @@ Return a JSON object with:
     const decomposition = await this.decomposeTask(intent, context)
     
     // Determine resources
-    const resources = this.determineResources(intent, context)
+    const resources = this.determineResources(intent, context ?? null)
     
     // Build execution steps
     const steps = this.buildExecutionSteps(decomposition, intent, resources)
@@ -508,7 +473,7 @@ Return a JSON object with:
    */
   private buildExecutionSteps(
     decomposition: TaskDecomposition,
-    intent: IntentAnalysis,
+    _intent: IntentAnalysis,
     resources: ResourceRequirements
   ): ExecutionStep[] {
     const steps: ExecutionStep[] = []
@@ -565,18 +530,4 @@ export async function initializeOrchestrator(context?: ProjectContext): Promise<
     orchestrator.setProjectContext(context)
   }
   return orchestrator
-}
-
-// Export types
-export type {
-  IntentType,
-  Complexity,
-  IntentAnalysis,
-  Task,
-  TaskDecomposition,
-  ResourceRequirements,
-  ExecutionPlan,
-  ExecutionStep,
-  OrchestratorState,
-  ProjectContext,
 }
